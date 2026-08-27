@@ -1,503 +1,618 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<!--
-  Content Security Policy: default-src 'none' blocks every external resource.
-  No CDN, no fonts, no analytics, no error reporting. The only two places this
-  page may talk to are listed in connect-src. If you add a third-party script
-  later, you have created a path for your API key to leave this page.
--->
-<meta http-equiv="Content-Security-Policy"
-      content="default-src 'none';
-               script-src 'unsafe-inline';
-               style-src 'unsafe-inline';
-               connect-src https://api.anthropic.com https://www.federalregister.gov;
-               img-src data:;
-               form-action 'none';
-               base-uri 'none'" />
-<title>Federal Register research loop</title>
-<style>
-  :root {
-    --ground: #DDE3E0;
-    --surface: #FAFBFA;
-    --surface-2: #EFF2F0;
-    --ink: #12211C;
-    --muted: #63756D;
-    --rule: #C3CCC8;
-    --signal: #0F5C4A;
-    --signal-soft: #D8E7E1;
-    --flag: #B4560A;
-    --flag-soft: #F6E7D6;
-    --drop: #9AA8A1;
-    --mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Code", Menlo, Consolas, monospace;
-    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  }
-  * , *::before, *::after { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
-  body {
-    background: var(--ground); color: var(--ink);
-    font-family: var(--mono); font-size: 14px; line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-  }
-  :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+<div id="app">
+  <style>
+    #app {
+      --ground: #DDE3E0;
+      --surface: #FAFBFA;
+      --surface-2: #EFF2F0;
+      --ink: #12211C;
+      --muted: #63756D;
+      --rule: #C3CCC8;
+      --signal: #0F5C4A;
+      --signal-soft: #D8E7E1;
+      --flag: #B4560A;
+      --flag-soft: #F6E7D6;
+      --drop: #9AA8A1;
 
-  .masthead { padding: 28px 24px 20px; border-bottom: 1px solid var(--rule); }
-  .eyebrow { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
-  .masthead h1 { font-family: var(--serif); font-size: 30px; line-height: 1.15; font-weight: 400; margin: 0 0 8px; max-width: 34ch; }
-  .masthead .sub { font-family: var(--serif); font-size: 16px; color: var(--muted); margin: 0; max-width: 64ch; }
+      --mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Code", Menlo, Consolas, monospace;
+      --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
 
-  /* ---- key bar ---- */
-  .keybar { border-bottom: 1px solid var(--rule); padding: 16px 24px; background: var(--surface-2); }
-  .keybar .row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; max-width: 1100px; }
-  .keybar .grow { flex: 1 1 320px; min-width: 220px; }
-  .keyline { font-family: var(--serif); font-size: 13.5px; color: var(--muted); margin: 10px 0 0; max-width: 78ch; line-height: 1.45; }
-  .keyline b { color: var(--ink); font-family: var(--mono); font-size: 12px; letter-spacing: .04em; }
-  .checkline { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); white-space: nowrap; padding-bottom: 9px; }
+      background: var(--ground);
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 14px;
+      line-height: 1.5;
+      padding: 0;
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    #app *, #app *::before, #app *::after { box-sizing: border-box; }
+    #app :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
 
-  .shell { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; align-items: start; }
-  .col-left { padding: 20px 20px 48px; border-right: 1px solid var(--rule); }
-  .col-right { padding: 20px 24px 72px; min-width: 0; }
-  @media (max-width: 900px) {
-    .shell { grid-template-columns: 1fr; }
-    .col-left { border-right: none; border-bottom: 1px solid var(--rule); }
-    .masthead h1 { font-size: 24px; }
-  }
+    /* ---------- masthead ---------- */
+    #app .masthead {
+      padding: 28px 24px 20px;
+      border-bottom: 1px solid var(--rule);
+    }
+    #app .eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 10px;
+    }
+    #app .masthead h1 {
+      font-family: var(--serif);
+      font-size: 30px;
+      line-height: 1.15;
+      font-weight: 400;
+      margin: 0 0 8px;
+      max-width: 34ch;
+    }
+    #app .masthead p {
+      font-family: var(--serif);
+      font-size: 16px;
+      color: var(--muted);
+      margin: 0;
+      max-width: 62ch;
+    }
 
-  .field { margin-bottom: 20px; }
-  .field-label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
-                 font-size: 11px; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 6px; }
-  .field-label .tag { font-size: 10px; letter-spacing: .08em; color: var(--muted); text-transform: none; }
-  .hint { font-family: var(--serif); font-size: 13.5px; color: var(--muted); margin: 0 0 8px; line-height: 1.4; }
+    /* ---------- shell ---------- */
+    #app .shell {
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) 1fr;
+      gap: 0;
+      align-items: start;
+    }
+    #app .col-left {
+      padding: 20px 20px 40px;
+      border-right: 1px solid var(--rule);
+    }
+    #app .col-right { padding: 20px 24px 60px; min-width: 0; }
 
-  textarea, input[type="text"], input[type="password"], input[type="number"], select {
-    width: 100%; background: var(--surface); border: 1px solid var(--rule); color: var(--ink);
-    font-family: var(--mono); font-size: 12.5px; line-height: 1.55; padding: 9px 10px;
-    border-radius: 2px; resize: vertical;
-  }
-  textarea:focus, input:focus, select:focus { border-color: var(--signal); }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 860px) {
+      #app .shell { grid-template-columns: 1fr; }
+      #app .col-left { border-right: none; border-bottom: 1px solid var(--rule); }
+      #app .masthead h1 { font-size: 24px; }
+    }
 
-  .tiers { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
-  .tier { flex: 1 1 auto; background: transparent; border: 1px solid var(--rule); color: var(--muted);
-          font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
-          padding: 7px 8px; border-radius: 2px; cursor: pointer; }
-  .tier:hover { border-color: var(--signal); color: var(--signal); }
-  .tier[aria-pressed="true"] { background: var(--signal); border-color: var(--signal); color: var(--surface); }
+    /* ---------- form bits ---------- */
+    #app .field { margin-bottom: 20px; }
+    #app .field-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    #app .field-label .tag {
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-transform: none;
+    }
+    #app .hint {
+      font-family: var(--serif);
+      font-size: 13.5px;
+      color: var(--muted);
+      margin: 0 0 8px;
+      line-height: 1.4;
+    }
+    #app textarea, #app input[type="text"] {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.55;
+      padding: 9px 10px;
+      border-radius: 2px;
+      resize: vertical;
+    }
+    #app textarea:focus, #app input:focus { border-color: var(--signal); }
 
-  .run { width: 100%; background: var(--ink); color: var(--surface); border: none; font-family: var(--mono);
-         font-size: 12px; letter-spacing: .16em; text-transform: uppercase; padding: 14px; border-radius: 2px;
-         cursor: pointer; margin-top: 4px; }
-  .run:hover { background: var(--signal); }
-  .run:disabled { background: var(--drop); cursor: not-allowed; }
+    #app .tiers { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+    #app .tier {
+      flex: 1 1 auto;
+      background: transparent;
+      border: 1px solid var(--rule);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 7px 8px;
+      border-radius: 2px;
+      cursor: pointer;
+    }
+    #app .tier:hover { border-color: var(--signal); color: var(--signal); }
+    #app .tier[aria-pressed="true"] {
+      background: var(--signal);
+      border-color: var(--signal);
+      color: var(--surface);
+    }
 
-  .btn { background: transparent; border: 1px solid var(--rule); color: var(--muted); font-family: var(--mono);
-         font-size: 11px; letter-spacing: .06em; padding: 6px 10px; border-radius: 2px; cursor: pointer; white-space: nowrap; }
-  .btn:hover { border-color: var(--signal); color: var(--signal); }
-  .btn.solid { background: var(--ink); border-color: var(--ink); color: var(--surface); }
-  .btn.solid:hover { background: var(--signal); border-color: var(--signal); color: var(--surface); }
+    #app .run {
+      width: 100%;
+      background: var(--ink);
+      color: var(--surface);
+      border: none;
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      padding: 14px;
+      border-radius: 2px;
+      cursor: pointer;
+      margin-top: 4px;
+    }
+    #app .run:hover { background: var(--signal); }
+    #app .run:disabled { background: var(--drop); cursor: not-allowed; }
 
-  .prompts { border-top: 1px solid var(--rule); padding-top: 16px; margin-top: 4px; }
-  details.prompt { border-bottom: 1px solid var(--rule); }
-  details.prompt > summary { cursor: pointer; padding: 9px 0; font-size: 11.5px; letter-spacing: .08em;
-                             text-transform: uppercase; list-style: none; display: flex; align-items: baseline; gap: 8px; }
-  details.prompt > summary::-webkit-details-marker { display: none; }
-  details.prompt > summary::before { content: "+"; color: var(--signal); font-size: 13px; }
-  details.prompt[open] > summary::before { content: "\2013"; }
-  details.prompt .pbody { padding: 0 0 12px; }
+    #app .subtle-btn {
+      background: transparent;
+      border: 1px solid var(--rule);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      padding: 6px 10px;
+      border-radius: 2px;
+      cursor: pointer;
+    }
+    #app .subtle-btn:hover { border-color: var(--signal); color: var(--signal); }
 
-  .rail { border-top: 1px solid var(--rule); }
-  .stage { border-bottom: 1px solid var(--rule); }
-  .stage-head { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; width: 100%;
-                background: transparent; border: none; text-align: left; font-family: var(--mono); color: var(--ink);
-                padding: 14px 4px; cursor: pointer; }
-  .stage-head:hover .stage-name { color: var(--signal); }
-  .stage-num { font-size: 11px; color: var(--drop); letter-spacing: .06em; }
-  .stage[data-state="done"] .stage-num, .stage[data-state="running"] .stage-num { color: var(--signal); }
-  .stage-name { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
-  .stage-owner { font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--muted);
-                 letter-spacing: 0; text-transform: none; margin-left: 10px; }
-  .stage-count { font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; }
-  .stage[data-state="running"] .stage-count { color: var(--flag); }
-  .stage[data-state="done"] .stage-count { color: var(--ink); }
-  .stage[data-state="error"] .stage-count { color: var(--flag); }
-  .stage-body { padding: 0 4px 18px 50px; }
-  .stage-body[hidden] { display: none; }
-  @media (max-width: 600px) { .stage-body { padding-left: 4px; } .stage-owner { display: none; } }
+    /* ---------- prompt editor ---------- */
+    #app .prompts { border-top: 1px solid var(--rule); padding-top: 16px; margin-top: 4px; }
+    #app details.prompt { border-bottom: 1px solid var(--rule); }
+    #app details.prompt summary {
+      cursor: pointer;
+      padding: 9px 0;
+      font-size: 11.5px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      list-style: none;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    #app details.prompt summary::-webkit-details-marker { display: none; }
+    #app details.prompt summary::before { content: "+"; color: var(--signal); font-size: 13px; }
+    #app details.prompt[open] summary::before { content: "–"; }
+    #app details.prompt .body { padding: 0 0 12px; }
 
-  .receipt { background: var(--surface); border: 1px solid var(--rule); border-radius: 2px; padding: 10px 12px; margin-bottom: 8px; }
-  .receipt-top { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
-  .doc-title { font-family: var(--serif); font-size: 15px; line-height: 1.3; margin: 0 0 4px; }
-  .doc-title a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--rule); }
-  .doc-title a:hover { border-color: var(--signal); color: var(--signal); }
-  .meta { font-size: 11px; color: var(--muted); letter-spacing: .04em; display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
-  .why { font-family: var(--serif); font-size: 14px; line-height: 1.45; margin: 6px 0 0; }
-  .evidence { font-family: var(--serif); font-size: 13px; font-style: italic; color: var(--muted);
-              border-left: 2px solid var(--rule); padding-left: 10px; margin: 8px 0 0; }
-  .receipt.dropped { background: transparent; border-style: dashed; }
-  .receipt.dropped .doc-title { color: var(--drop); text-decoration: line-through; }
-  .receipt.dropped .why { color: var(--muted); font-style: italic; }
+    /* ---------- stage rail ---------- */
+    #app .rail { border-top: 1px solid var(--rule); }
+    #app .stage { border-bottom: 1px solid var(--rule); }
+    #app .stage-head {
+      display: grid;
+      grid-template-columns: 34px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      width: 100%;
+      background: transparent;
+      border: none;
+      text-align: left;
+      font-family: var(--mono);
+      color: var(--ink);
+      padding: 14px 4px;
+      cursor: pointer;
+    }
+    #app .stage-head:hover .stage-name { color: var(--signal); }
+    #app .stage-num {
+      font-size: 11px;
+      color: var(--drop);
+      letter-spacing: 0.06em;
+    }
+    #app .stage[data-state="done"] .stage-num,
+    #app .stage[data-state="running"] .stage-num { color: var(--signal); }
+    #app .stage-name {
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    #app .stage-owner {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0;
+      text-transform: none;
+      margin-left: 10px;
+    }
+    #app .stage-count {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+      white-space: nowrap;
+    }
+    #app .stage[data-state="running"] .stage-count { color: var(--flag); }
+    #app .stage[data-state="done"] .stage-count { color: var(--ink); }
+    #app .stage[data-state="error"] .stage-count { color: var(--flag); }
+    #app .stage-body { padding: 0 4px 18px 50px; }
+    #app .stage-body[hidden] { display: none; }
 
-  .chip { display: inline-block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
-          padding: 2px 6px; border-radius: 2px; white-space: nowrap; }
-  .chip.keep { background: var(--signal-soft); color: var(--signal); }
-  .chip.cut { background: var(--surface-2); color: var(--drop); }
-  .chip.deadline { background: var(--flag-soft); color: var(--flag); }
-  .chip.full { background: var(--surface-2); color: var(--muted); }
+    @media (max-width: 560px) {
+      #app .stage-body { padding-left: 4px; }
+      #app .stage-owner { display: none; }
+    }
 
-  .zero { border-style: dashed; border-color: var(--flag); background: var(--flag-soft); color: var(--flag); font-size: 12px; }
-  .note { font-family: var(--serif); font-size: 13.5px; color: var(--muted); line-height: 1.45;
-          margin: 0 0 10px; padding-left: 10px; border-left: 2px solid var(--rule); }
-  .brief { background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--signal);
-           padding: 18px 20px; border-radius: 2px; font-family: var(--serif); font-size: 15px;
-           line-height: 1.55; white-space: pre-wrap; }
-  .banner { border: 1px solid var(--flag); background: var(--flag-soft); color: var(--flag);
-            padding: 10px 12px; border-radius: 2px; font-size: 12px; line-height: 1.5; margin-bottom: 16px; }
-  .banner strong { letter-spacing: .06em; text-transform: uppercase; font-size: 11px; }
-  .banner.ok { border-color: var(--signal); background: var(--signal-soft); color: var(--signal); }
-  .empty { font-family: var(--serif); font-size: 15px; color: var(--muted); max-width: 56ch; line-height: 1.5; }
-  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-  .export { flex: 1 1 100%; margin-top: 10px; }
-  .export[hidden] { display: none; }
-  .export textarea { font-size: 11.5px; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
+    /* ---------- receipts ---------- */
+    #app .receipt {
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      border-radius: 2px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+    #app .receipt-top {
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    #app .doc-title {
+      font-family: var(--serif);
+      font-size: 15px;
+      line-height: 1.3;
+      margin: 0 0 4px;
+    }
+    #app .doc-title a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--rule); }
+    #app .doc-title a:hover { border-color: var(--signal); color: var(--signal); }
+    #app .meta {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+    #app .why {
+      font-family: var(--serif);
+      font-size: 14px;
+      line-height: 1.45;
+      margin: 6px 0 0;
+    }
+    #app .receipt.dropped { background: transparent; border-style: dashed; }
+    #app .receipt.dropped .doc-title { color: var(--drop); text-decoration: line-through; }
+    #app .receipt.dropped .why { color: var(--muted); font-style: italic; }
 
-  footer { border-top: 1px solid var(--rule); padding: 20px 24px 40px; }
-  footer p { font-family: var(--serif); font-size: 13.5px; color: var(--muted); max-width: 76ch; line-height: 1.5; margin: 0 0 8px; }
-  footer code { font-family: var(--mono); font-size: 12px; background: var(--surface); padding: 1px 5px; border: 1px solid var(--rule); border-radius: 2px; }
+    #app .chip {
+      display: inline-block;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 2px;
+      white-space: nowrap;
+    }
+    #app .chip.keep { background: var(--signal-soft); color: var(--signal); }
+    #app .chip.cut { background: var(--surface-2); color: var(--drop); }
+    #app .chip.deadline { background: var(--flag-soft); color: var(--flag); }
 
-  @media (prefers-reduced-motion: no-preference) {
-    .stage[data-state="running"] .stage-count { animation: pulse 1.1s ease-in-out infinite; }
-    @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .42 } }
-  }
-</style>
-</head>
-<body>
+    #app .zero {
+      border-style: dashed;
+      border-color: var(--flag);
+      background: var(--flag-soft);
+      color: var(--flag);
+      font-size: 12px;
+    }
 
-<div class="masthead">
-  <p class="eyebrow">Newsroom AI Lab &middot; Research loop 01 &middot; standalone</p>
-  <h1>What did the federal government file this week that matters to your readers?</h1>
-  <p class="sub">Five stages. Code decides the order; the model only makes judgments. Every stage shows its work, including what it threw away.</p>
-</div>
+    #app .note {
+      font-family: var(--serif);
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.45;
+      margin: 0 0 10px;
+      padding-left: 10px;
+      border-left: 2px solid var(--rule);
+    }
 
-<div class="keybar">
-  <div class="row">
-    <div class="grow">
-      <div class="field-label"><span>Anthropic API key</span><span class="tag">yours, not ours</span></div>
-      <input type="password" id="apikey" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" />
-    </div>
-    <label class="checkline"><input type="checkbox" id="remember" style="width:auto" /> Remember on this device</label>
-    <div class="checkline" style="padding-bottom:6px"><button class="btn" id="testKey">Test key</button></div>
+    #app .brief {
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      border-left: 3px solid var(--signal);
+      padding: 18px 20px;
+      border-radius: 2px;
+      font-family: var(--serif);
+      font-size: 15px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+
+    #app .banner {
+      border: 1px solid var(--flag);
+      background: var(--flag-soft);
+      color: var(--flag);
+      padding: 10px 12px;
+      border-radius: 2px;
+      font-size: 12px;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    #app .banner strong { letter-spacing: 0.06em; text-transform: uppercase; font-size: 11px; }
+
+    #app .empty {
+      font-family: var(--serif);
+      font-size: 15px;
+      color: var(--muted);
+      max-width: 56ch;
+      line-height: 1.5;
+    }
+    #app .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    #app .export { flex: 1 1 100%; margin-top: 10px; }
+    #app .export[hidden] { display: none; }
+    #app .export textarea {
+      font-size: 11.5px;
+      line-height: 1.5;
+      background: var(--surface);
+      white-space: pre;
+      overflow-wrap: normal;
+      overflow-x: auto;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      #app .stage[data-state="running"] .stage-count { animation: pulse 1.1s ease-in-out infinite; }
+      @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.42 } }
+    }
+  </style>
+
+  <div class="masthead">
+    <p class="eyebrow">Newsroom AI Lab · Research loop 01</p>
+    <h1>What did the federal government file this week that matters to your readers?</h1>
+    <p>Five stages. Code decides the order; the model only makes judgments. Every stage shows its work, including what it threw away.</p>
   </div>
-  <p class="keyline">
-    This page has no server. Your key is held in this browser tab and sent only to
-    <b>api.anthropic.com</b>. Searches go only to <b>www.federalregister.gov</b>. Nothing is
-    logged, stored, or transmitted anywhere else &mdash; and because there is no backend,
-    there is nowhere for it to be stored even by accident. The page loads no external
-    scripts, fonts, or analytics; a Content-Security-Policy in the source blocks them.
-    Leave it that way. Get a key at console.anthropic.com and set a monthly spend limit.
-  </p>
-  <div id="protoNote"></div>
-</div>
 
-<div class="shell">
-  <div class="col-left">
-
-    <div class="field">
-      <div class="field-label"><span>Newsroom profile</span><span class="tag">persistent</span></div>
-      <p class="hint">Written once, refined over time. This is the part a hosted search tool can never know, and the part worth arguing about in an editorial meeting.</p>
-      <div class="tiers">
-        <button class="tier" data-tier="town" aria-pressed="false">Town</button>
-        <button class="tier" data-tier="state" aria-pressed="false">State</button>
-        <button class="tier" data-tier="national" aria-pressed="false">National</button>
+  <div class="shell">
+    <div class="col-left">
+      <div class="field">
+        <div class="field-label"><span>Newsroom profile</span><span class="tag">persistent</span></div>
+        <p class="hint">Written once, refined over time. This is the part a hosted search tool can never know.</p>
+        <div class="tiers">
+          <button class="tier" data-tier="town" aria-pressed="false">Town</button>
+          <button class="tier" data-tier="state" aria-pressed="false">State</button>
+          <button class="tier" data-tier="national" aria-pressed="false">National</button>
+        </div>
+        <textarea id="profile" rows="9" spellcheck="false"></textarea>
       </div>
-      <textarea id="profile" rows="10" spellcheck="false"></textarea>
-      <div class="toolbar">
-        <button class="btn" id="exportProfile">Save profile to file</button>
-        <button class="btn" id="importProfile">Load profile from file</button>
+
+      <div class="field">
+        <div class="field-label"><span>This run</span><span class="tag">per assignment</span></div>
+        <p class="hint">What you're working on right now, or the beat you want swept.</p>
+        <textarea id="objective" rows="3" spellcheck="false"></textarea>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span>Look back</span></div>
+        <input type="text" id="days" value="60" spellcheck="false" />
+      </div>
+
+      <button class="run" id="runBtn">Run the loop</button>
+
+      <div class="prompts">
+        <div class="field-label" style="margin-bottom:8px"><span>The four judgments</span><span class="tag">editable</span></div>
+        <p class="hint">These are the only places the model decides anything. Everything else is code. Edit them for your beat.</p>
+        <div id="promptEditors"></div>
+        <div class="toolbar">
+          <button class="subtle-btn" id="resetPrompts">Reset prompts</button>
+        </div>
       </div>
     </div>
 
-    <div class="field">
-      <div class="field-label"><span>This run</span><span class="tag">per assignment</span></div>
-      <textarea id="objective" rows="3" spellcheck="false"></textarea>
-    </div>
-
-    <div class="field">
-      <div class="grid2">
-        <div>
-          <div class="field-label"><span>Look back (days)</span></div>
-          <input type="number" id="days" value="60" min="1" max="365" />
-        </div>
-        <div>
-          <div class="field-label"><span>Max to screen</span></div>
-          <input type="number" id="maxScreen" value="40" min="1" max="300" />
-        </div>
-      </div>
-      <label class="checkline" style="padding:10px 0 0; white-space:normal">
-        <input type="checkbox" id="tryFullText" style="width:auto" checked />
-        Try to fetch full document text
-      </label>
-      <p class="hint" style="margin-top:4px">The abstract is the agency's summary of itself. The preamble is where the cost estimates and the responses to objections live. The browser may not be allowed to fetch it &mdash; stage 03 will tell you either way.</p>
-    </div>
-
-    <button class="run" id="runBtn">Run the loop</button>
-
-    <div class="prompts">
-      <div class="field-label" style="margin-bottom:8px"><span>The four judgments</span><span class="tag">editable</span></div>
-      <p class="hint">These are the only places the model decides anything. Everything else is code. Edit them for your beat.</p>
-      <div id="promptEditors"></div>
-      <details class="prompt">
-        <summary>Models</summary>
-        <div class="pbody">
-          <p class="hint">Stage 04 runs once per document, so nearly all the cost is there. A smaller model is usually the right call for screening.</p>
-          <div class="field-label"><span>Prose stages (01, 02, 05)</span></div>
-          <input type="text" id="modelThink" value="claude-sonnet-5" spellcheck="false" />
-          <div class="field-label" style="margin-top:10px"><span>Screening stage (04)</span></div>
-          <input type="text" id="modelScreen" value="claude-haiku-4-5-20251001" spellcheck="false" />
-        </div>
-      </details>
-      <div class="toolbar"><button class="btn" id="resetPrompts">Reset prompts</button></div>
+    <div class="col-right">
+      <div id="banner"></div>
+      <div class="rail" id="rail"></div>
+      <div class="toolbar" id="outToolbar"></div>
     </div>
   </div>
-
-  <div class="col-right">
-    <div id="banner"></div>
-    <div class="rail" id="rail"></div>
-    <div class="toolbar" id="outToolbar"></div>
-  </div>
 </div>
-
-<footer>
-  <p><strong style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase">Running this file</strong></p>
-  <p>Double-click it and it works. If calls fail with a network or CORS error, your browser is
-  refusing requests from a <code>file://</code> page. Open a terminal in this folder and run
-  <code>python3 -m http.server 8000</code>, then visit <code>localhost:8000</code>. Same file, real origin.
-  You can also drop it on GitHub Pages, Netlify, or Cloudflare Pages &mdash; it is one static file
-  with no build step and no dependencies.</p>
-  <p><strong style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase">Before you publish anything from this</strong></p>
-  <p>The loop finds documents and says why it thinks they matter. It does not verify, it does not
-  call anyone, and it is confidently wrong on a regular basis. Everything it produces is a lead.
-  Open the document, read the passage yourself, and report it out.</p>
-  <p style="margin-top:14px">View source on this page. The whole application is here, in one file, with nothing hidden.</p>
-</footer>
-
-<input type="file" id="fileInput" accept=".txt,.md" style="display:none" />
 
 <script>
 (function () {
   "use strict";
 
-  var FR_API = "https://www.federalregister.gov/api/v1/documents.json";
-  var ANTHROPIC = "https://api.anthropic.com/v1/messages";
+  const FR_API = "https://www.federalregister.gov/api/v1/documents.json";
+  const MODEL = "claude-sonnet-4-6";
 
-  /* =====================================================================
+  /* ============================================================
      PROFILE PRESETS — the persistent context layer
-     ===================================================================== */
-  var PRESETS = {
-    town: [
-      "TIER: Local (town/county)",
-      "OUTLET: [your outlet], [your county and state] (pop. [number])",
-      "AUDIENCE: [who actually reads you, and what they trust you for]",
-      "",
-      "WHAT IS PHYSICALLY HERE (this is what turns a national rule into a local story):",
-      "- [largest private employer, and roughly how many people work there]",
-      "- [hospital, and how it is funded -- critical access? majority Medicaid?]",
-      "- [nursing homes, schools, colleges and their funding dependencies]",
-      "- [contaminated sites, plants, mines, ports, airports, military facilities]",
-      "- [populations federal policy touches directly: immigrant communities,",
-      "   veterans, farmers, tribal members, people on public benefits]",
-      "",
-      "WHAT WE COVER HARD: [three or four things]",
-      "",
-      "WHAT WE DO NOT COVER: [be specific -- this is what stops the loop drowning you]",
-      "",
-      "RELEVANCE BAR: Keep it if I could name a person here it affects. Cast a wide",
-      "net; our town is almost never named directly, so translation matters more",
-      "than literal matches."
-    ].join("\n"),
+     ============================================================ */
+  const PRESETS = {
+    town: `TIER: Local (town/county)
+OUTLET: The Register-Dispatch, Clayton County, Iowa (pop. 17,000)
+AUDIENCE: Year-round residents, mostly 45+. Many households have someone
+working at the plant or farming. Low trust in national media, high trust in us.
 
-    state: [
-      "TIER: Statewide",
-      "OUTLET: [bureau or newsroom], [state]",
-      "AUDIENCE: engaged residents, agency staff, tribal governments, legislators",
-      "",
-      "WHAT WE COVER: [state] agency accountability, Medicaid, public lands, water,",
-      "energy on federal acreage, tribal consultation, education funding",
-      "",
-      "WHAT WE WATCH FOR SPECIFICALLY:",
-      "- Federal actions requiring a state response (state plans, waivers,",
-      "  implementation plans) -- and whether our agencies actually responded",
-      "- Deadlines our state has missed",
-      "- Places where we are an outlier: only state to opt out, one of three that",
-      "  hasn't applied, last to submit",
-      "- Anything requiring tribal consultation, and whether it happened",
-      "",
-      "RELEVANCE BAR: Keep it if it names [state], creates an obligation for a",
-      "[state] agency, or lets me compare us against other states.",
-      "",
-      "WHAT WE DO NOT COVER: routine federal housekeeping with no state obligation."
-    ].join("\n"),
+WHAT IS PHYSICALLY HERE (this is what makes national rules local):
+- Cedar Valley Pork processing plant, ~420 employees, largest private employer
+- A 62-bed critical access hospital, majority Medicare/Medicaid revenue
+- Two nursing homes
+- A closed lead smelter, EPA-listed, groundwater monitoring ongoing
+- A regional airport with one commercial route
+- Community college where ~60% of students receive Pell grants
+- Growing Guatemalan and Marshallese populations, many plant workers
 
-    national: [
-      "TIER: National",
-      "OUTLET: investigative desk, accountability and regulatory capture beat",
-      "AUDIENCE: policy-literate national readers, other journalists, Hill staff",
-      "",
-      "WHAT WE ARE HUNTING (anomaly, not relevance):",
-      "- Proposed vs. final divergence: rules that softened between proposal and",
-      "  finalization, especially where industry comments are the visible cause",
-      "- Cross-agency patterns: several agencies invoking the same novel legal",
-      "  theory in a short window",
-      "- Quiet retreats: withdrawn rules, delayed effective dates, reopened comment",
-      "  periods -- none of which get announced",
-      "- Preamble numbers: agency cost estimates and affected-entity counts we can",
-      "  check against public statements",
-      "- New federal databases about people (System of Records Notices)",
-      "",
-      "RELEVANCE BAR: Keep it only if something is unusual -- unusual for this",
-      "agency, unusual timing, unusual legal basis, or unusually quiet. Routine is",
-      "not a story. Cut hard: six real anomalies beat forty maybes."
-    ].join("\n")
+WHAT WE COVER HARD: anything affecting the plant, the hospital, farm income,
+school funding, and the smelter site.
+
+WHAT WE DO NOT COVER: federal process stories with no local endpoint.
+
+RELEVANCE BAR: Keep it if I could name a person here it affects. Cast a wide net —
+our town is almost never named directly, so translation matters more than
+literal matches.`,
+
+    state: `TIER: Statewide
+OUTLET: Statehouse bureau, nonprofit newsroom, New Mexico
+AUDIENCE: Engaged residents, policy staff, tribal governments, legislators.
+
+WHAT WE COVER: state agency accountability, Medicaid, public lands, water,
+oil and gas on federal acreage, tribal consultation, education funding.
+
+WHAT WE WATCH FOR SPECIFICALLY:
+- Federal actions that require a state response (state plans, waivers,
+  implementation plans) — and whether our agencies actually responded
+- Deadlines our state has missed
+- Places where New Mexico is an outlier: only state to opt out, one of three
+  that hasn't applied, last to submit
+- Anything requiring tribal consultation, and whether it happened
+
+RELEVANCE BAR: Keep it if it names New Mexico, creates an obligation for a
+New Mexico agency, or lets me compare us against other states.
+
+WHAT WE DO NOT COVER: routine federal housekeeping with no state obligation.`,
+
+    national: `TIER: National
+OUTLET: Investigative desk, accountability and regulatory capture beat
+AUDIENCE: Policy-literate national readers, other journalists, Hill staff.
+
+WHAT WE ARE HUNTING (not relevance — anomaly):
+- Proposed vs. final divergence: rules that softened between proposal and
+  finalization, especially where industry comments are the visible cause
+- Cross-agency patterns: multiple agencies invoking the same novel legal
+  theory in a short window
+- Quiet retreats: withdrawn rules, delayed effective dates, reopened comment
+  periods, all of which happen without announcement
+- Preamble numbers: agency cost estimates and affected-entity counts we can
+  check against public statements
+- New federal databases about people (System of Records Notices)
+
+RELEVANCE BAR: Keep it only if something about it is unusual — unusual for
+this agency, unusual timing, unusual legal basis, or unusually quiet.
+Routine is not a story. Cut aggressively; I would rather see six real
+anomalies than forty maybes.`
   };
 
-  var DEFAULT_OBJECTIVE =
-    "General sweep of my beat -- show me what I would have missed this month.";
+  const DEFAULT_OBJECTIVE =
+    "General sweep of my beat — show me what I would have missed this month.";
 
-  /* =====================================================================
-     THE FOUR PROMPTS
-     ===================================================================== */
-  var DEFAULTS = {
-    frame: { label: "01 \u00b7 Frame",
-      help: "Turns your profile and assignment into distinct angles worth watching.",
-      text: [
-"You are a research editor at a newsroom. You know the Federal Register well: it",
-"holds proposed rules, final rules, notices, and presidential documents from every",
-"federal agency.",
-"",
-"Read the newsroom profile and this run's objective. Produce 6 DISTINCT angles of",
-"federal activity worth checking. Make them specific to this newsroom, not generic",
-"policy areas. If the profile names a facility, a population, or a funding stream,",
-"at least two angles should trace back to something named.",
-"",
-"Do not repeat angles. Do not propose anything the profile says they don't cover.",
-"",
-"Return ONLY a JSON array, no prose, no code fences:",
-'[{"angle": "short phrase", "rationale": "one sentence on why this newsroom"}]'
-      ].join("\n") },
+  /* ============================================================
+     THE FOUR PROMPTS — the only places the model decides anything
+     ============================================================ */
+  const DEFAULT_PROMPTS = {
+    frame: {
+      label: "01 · Frame",
+      help: "Turns your profile and assignment into distinct angles worth watching. Model judgment.",
+      text: `You are a research editor at a newsroom. You know the Federal Register well:
+it holds proposed rules, final rules, notices, and presidential documents from
+every federal agency.
 
-    query: { label: "02 \u00b7 Query",
-      help: "Turns angles into literal search terms. The search itself is run by code.",
-      text: [
-"Convert each angle into ONE Federal Register full-text search.",
-"",
-"Rules:",
-'- "term" must be 1-4 words that would literally appear in a federal document. Use',
-'  the government\'s vocabulary, not the newsroom\'s. Agencies write "critical access',
-'  hospital", not "our small hospital". They write "concentrated animal feeding',
-'  operation", not "factory farm".',
-'- Avoid terms so broad they return everything ("health", "safety", "program").',
-'- "type" is one of: RULE, PRORULE, NOTICE, or "" for any.',
-"  PRORULE = proposed rule (has a comment deadline).",
-"  NOTICE covers meetings, grants, environmental statements, records notices.",
-"",
-"Return ONLY a JSON array, no prose, no code fences:",
-'[{"term": "search words", "type": "PRORULE", "angle": "which angle this serves"}]'
-      ].join("\n") },
+Read the newsroom profile and this run's objective. Produce 5 DISTINCT angles of
+federal activity worth checking. Make them specific to this newsroom — not
+generic policy areas. If the profile names a facility, a population, or a
+funding stream, at least two angles should trace back to something named.
 
-    judge: { label: "03 \u00b7 Judge",
+Do not repeat angles. Do not propose anything the profile says they don't cover.
+
+Return ONLY a JSON array, no prose, no code fences:
+[{"angle": "short phrase", "rationale": "one sentence on why this newsroom"}]`
+    },
+    query: {
+      label: "02 · Query",
+      help: "Turns angles into literal search terms. Model judgment, but the search itself is code.",
+      text: `Convert each angle into ONE Federal Register full-text search.
+
+Rules:
+- "term" must be 1-4 words that would literally appear in a federal document.
+  Use the government's vocabulary, not the newsroom's. Agencies write
+  "critical access hospital", not "our small hospital".
+- Avoid terms so broad they return everything ("health", "safety").
+- "type" is one of: RULE, PRORULE, NOTICE, or "" for any.
+  PRORULE = proposed rule (has a comment deadline). NOTICE covers meetings,
+  grants, environmental statements, and records notices.
+
+Return ONLY a JSON array, no prose, no code fences:
+[{"term": "search words", "type": "PRORULE", "angle": "which angle this serves"}]`
+    },
+    judge: {
+      label: "03 · Judge",
       help: "Runs once per document, with no memory of the others. This is the cull.",
-      text: [
-"You are screening ONE Federal Register document for one newsroom.",
-"",
-"Apply the newsroom's relevance bar exactly as written in the profile. A local",
-"outlet needs translation -- a national rule can matter because of a facility the",
-"profile names. A national investigative desk needs anomaly, not relevance.",
-"",
-"If you are given full document text rather than an abstract, look for: cost",
-"estimates, counts of affected people or facilities, named places, compliance",
-"deadlines, and any passage where the agency responds to objections. That is",
-"usually where the story is.",
-"",
-"Be honest. Most federal documents are routine and should be cut. Cutting is a real",
-"answer, and an editor will read the reason you give.",
-"",
-'"why" is one sentence for that editor. If you keep it, say what the story is and',
-"name the local hook if the profile gives you one. If you cut it, say plainly why",
-"it doesn't clear the bar.",
-'"evidence" is a short phrase from the document that made you decide, so a human',
-'can check you. Empty string if nothing specific.',
-"",
-"Return ONLY a JSON object, no prose, no code fences:",
-'{"keep": true, "score": 4, "why": "one sentence", "evidence": "short phrase"}',
-"",
-"score: 0-5. Keep only if score >= 3."
-      ].join("\n") },
+      text: `You are screening ONE Federal Register document for one newsroom.
 
-    brief: { label: "04 \u00b7 Brief",
-      help: "Writes the editor's lede. The item list underneath is assembled by code.",
-      text: [
-"You are writing the top of a memo to a busy assigning editor who has not read any",
-"of these documents.",
-"",
-"In 3-4 sentences: what is the single most consequential item here and why, and is",
-'anything time-sensitive. Name the item plainly. No preamble, no "here is a',
-'summary", no bullet points, no headline.',
-"",
-"If nothing here is genuinely consequential, say so directly. That is useful",
-"information and the editor would rather hear it than read filler."
-      ].join("\n") }
+Apply the newsroom's relevance bar exactly as written in the profile. A local
+outlet needs translation — a national rule can matter because of a facility the
+profile names. A national investigative desk needs anomaly, not relevance.
+
+Be honest. Most federal documents are routine and should be cut. Cutting is a
+real answer, and the reason you give will be read by an editor.
+
+"why" must be one sentence written for that editor. If you keep it, say what the
+story is and name the local hook if the profile gives you one. If you cut it,
+say plainly why it doesn't clear the bar.
+
+Return ONLY a JSON object, no prose, no code fences:
+{"keep": true, "score": 4, "why": "one sentence"}
+
+score: 0-5. Keep only if score >= 3.`
+    },
+    brief: {
+      label: "04 · Brief",
+      help: "Writes the editor's lede. The item list underneath is assembled by code, not the model.",
+      text: `You are writing the top of a memo to a busy assigning editor who has not
+read any of these documents.
+
+In 2-3 sentences: what is the single most consequential item here and why, and
+is there anything time-sensitive. Name the item plainly. No preamble, no
+"here is a summary", no bullet points, no headline.
+
+If nothing here is genuinely consequential, say so directly — that is useful
+information and the editor would rather hear it than read filler.`
+    }
   };
 
-  /* =====================================================================
-     SAMPLE DATA — used only if the Federal Register is unreachable
-     ===================================================================== */
-  var FIXTURES = [
+  /* ============================================================
+     SAMPLE DATA — clearly marked, used only if the live API is unreachable
+     ============================================================ */
+  const FIXTURES = [
     { document_number: "SAMPLE-0001", type: "Proposed Rule",
       title: "[SAMPLE DATA] Occupational Exposure to Poultry and Swine Processing Line Speeds",
-      abstract: "OSHA proposes maximum line speeds and mandatory rest intervals at swine and poultry processing establishments. The agency estimates 512 establishments and approximately 187,000 workers would be affected.",
+      abstract: "OSHA proposes to establish maximum line speeds and mandatory rest intervals at swine and poultry processing establishments. The agency estimates 512 establishments and approximately 187,000 workers would be affected. Comments due within 60 days.",
       agencies: [{ name: "Occupational Safety and Health Administration" }],
       publication_date: "2026-08-11", comments_close_on: "2026-10-10", effective_on: null,
       html_url: "https://www.federalregister.gov" },
     { document_number: "SAMPLE-0002", type: "Notice",
-      title: "[SAMPLE DATA] Privacy Act of 1974; System of Records \u2014 Employment Verification Analytics Repository",
-      abstract: "DHS proposes a new system of records consolidating employment eligibility verification records with state wage data. Records retained 15 years and may be shared with state and local law enforcement.",
+      title: "[SAMPLE DATA] Privacy Act of 1974; System of Records — Employment Verification Analytics Repository",
+      abstract: "DHS proposes a new system of records to consolidate employment eligibility verification records with state wage data for analytic purposes. Records would be retained for 15 years and may be shared with state and local law enforcement.",
       agencies: [{ name: "Department of Homeland Security" }],
       publication_date: "2026-08-19", comments_close_on: "2026-09-18", effective_on: null,
       html_url: "https://www.federalregister.gov" },
     { document_number: "SAMPLE-0003", type: "Rule",
       title: "[SAMPLE DATA] Medicare Program; Critical Access Hospital Cost Reporting Requirements",
-      abstract: "CMS finalizes revised cost reporting for critical access hospitals. In response to comments the agency extended the compliance date by 18 months and removed the proposed swing-bed utilization threshold.",
+      abstract: "CMS finalizes revised cost reporting requirements for critical access hospitals. In response to comments, the agency has extended the compliance date by 18 months and removed the proposed swing-bed utilization threshold.",
       agencies: [{ name: "Centers for Medicare & Medicaid Services" }],
       publication_date: "2026-07-29", comments_close_on: null, effective_on: "2026-11-01",
       html_url: "https://www.federalregister.gov" },
     { document_number: "SAMPLE-0004", type: "Notice",
       title: "[SAMPLE DATA] National Priorities List Site; Five-Year Review and Groundwater Monitoring Results",
-      abstract: "EPA announces five-year review findings for former smelter sites, including revised groundwater plume boundaries and updated residential soil sampling protocols.",
+      abstract: "EPA announces availability of five-year review findings for several former smelter sites, including revised groundwater plume boundaries and updated residential soil sampling protocols.",
       agencies: [{ name: "Environmental Protection Agency" }],
       publication_date: "2026-08-05", comments_close_on: "2026-09-30", effective_on: null,
       html_url: "https://www.federalregister.gov" },
     { document_number: "SAMPLE-0005", type: "Notice",
-      title: "[SAMPLE DATA] Agency Information Collection Activities; Submission for OMB Review",
-      abstract: "Routine notice of submission of an existing information collection to OMB for extension without change.",
+      title: "[SAMPLE DATA] Agency Information Collection Activities; Submission for OMB Review; Recordkeeping",
+      abstract: "Routine notice of submission of an existing information collection to the Office of Management and Budget for extension without change.",
       agencies: [{ name: "Department of Labor" }],
       publication_date: "2026-08-14", comments_close_on: "2026-09-13", effective_on: null,
       html_url: "https://www.federalregister.gov" },
     { document_number: "SAMPLE-0006", type: "Proposed Rule",
       title: "[SAMPLE DATA] Federal Pell Grant Program; Eligibility for Short-Term Workforce Programs",
-      abstract: "The Department proposes extending Pell eligibility to certain short-term workforce credential programs at community colleges, with new completion and job-placement reporting requirements.",
+      abstract: "The Department proposes to extend Pell Grant eligibility to certain short-term workforce credential programs at community colleges, with new completion and job-placement reporting requirements.",
       agencies: [{ name: "Department of Education" }],
       publication_date: "2026-08-21", comments_close_on: "2026-10-20", effective_on: null,
       html_url: "https://www.federalregister.gov" },
     { document_number: "SAMPLE-0007", type: "Rule",
       title: "[SAMPLE DATA] Delay of Effective Date; Nursing Home Minimum Staffing Standards",
-      abstract: "CMS delays the effective date of minimum staffing standards for long-term care facilities by 24 months, citing implementation concerns raised by rural providers.",
+      abstract: "CMS delays the effective date of previously published minimum staffing standards for long-term care facilities by 24 months, citing implementation concerns raised by rural providers.",
       agencies: [{ name: "Centers for Medicare & Medicaid Services" }],
       publication_date: "2026-08-08", comments_close_on: null, effective_on: "2026-09-08",
       html_url: "https://www.federalregister.gov" },
     { document_number: "SAMPLE-0008", type: "Notice",
       title: "[SAMPLE DATA] Notice of Funding Availability; Rural Health Care Coordination Program",
-      abstract: "HRSA announces funds for rural health network development. Applications due within 90 days. Eligible applicants include critical access hospitals and rural health clinics.",
+      abstract: "HRSA announces the availability of funds for rural health network development. Applications are due within 90 days. Eligible applicants include critical access hospitals and rural health clinics.",
       agencies: [{ name: "Health Resources and Services Administration" }],
       publication_date: "2026-08-01", comments_close_on: null, effective_on: null,
       html_url: "https://www.federalregister.gov" },
@@ -508,81 +623,82 @@
       publication_date: "2026-07-24", comments_close_on: null, effective_on: "2026-10-15",
       html_url: "https://www.federalregister.gov" },
     { document_number: "SAMPLE-0010", type: "Proposed Rule",
-      title: "[SAMPLE DATA] State Implementation Plans; Regional Haze Requirements, Second Planning Period",
+      title: "[SAMPLE DATA] State Implementation Plans; Regional Haze Requirements for Second Planning Period",
       abstract: "EPA proposes to find that several states failed to submit adequate regional haze state implementation plans, which would trigger federal implementation plan obligations.",
       agencies: [{ name: "Environmental Protection Agency" }],
       publication_date: "2026-08-17", comments_close_on: "2026-10-01", effective_on: null,
       html_url: "https://www.federalregister.gov" }
   ];
 
-  var STAGES = [
-    { id: "frame", num: "01", name: "Frame", owner: "model decides" },
-    { id: "query", num: "02", name: "Query", owner: "model decides" },
-    { id: "fetch", num: "03", name: "Fetch", owner: "code only" },
-    { id: "judge", num: "04", name: "Judge", owner: "model, once per document" },
-    { id: "brief", num: "05", name: "Brief", owner: "model writes, code assembles" }
+  /* ============================================================
+     STAGE DEFINITIONS — code owns this sequence, always
+     ============================================================ */
+  const STAGES = [
+    { id: "frame", num: "01", name: "Frame",  owner: "model decides" },
+    { id: "query", num: "02", name: "Query",  owner: "model decides" },
+    { id: "fetch", num: "03", name: "Fetch",  owner: "code only" },
+    { id: "judge", num: "04", name: "Judge",  owner: "model, once per document" },
+    { id: "brief", num: "05", name: "Brief",  owner: "model writes, code assembles" }
   ];
 
-  var FIELDS = ["title","abstract","document_number","publication_date","type",
-                "agencies","html_url","comments_close_on","effective_on","raw_text_url"];
+  const el = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 
-  var $ = function (id) { return document.getElementById(id); };
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  // Downloads are blocked in a sandboxed frame, and the clipboard API often is
+  // too. Try the modern path, fall back to execCommand, and if both fail say so
+  // plainly instead of pretending it worked.
+  async function copyText(text, btn, label) {
+    const done = (ok) => {
+      btn.textContent = ok ? "Copied" : "Select it below and copy";
+      setTimeout(() => { btn.textContent = label; }, ok ? 1600 : 3200);
+    };
+    try {
+      await navigator.clipboard.writeText(text);
+      done(true);
+      return;
+    } catch (e) { /* fall through */ }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      done(ok);
+    } catch (e) { done(false); }
   }
 
-  var prompts = JSON.parse(JSON.stringify(DEFAULTS));
-  var receipts = {};
-  var usage = { in: 0, out: 0, calls: 0 };
-  var running = false;
+  let prompts = JSON.parse(JSON.stringify(DEFAULT_PROMPTS));
+  let receipts = {};
+  let usedFixtures = false;
+  let running = false;
 
-  /* ---------------- storage ---------------- */
-  var KEY_NAME = "fr_loop_key";
-  var STATE_NAME = "fr_loop_state";
-  function store() { return $("remember").checked ? window.localStorage : window.sessionStorage; }
-
-  function saveKey() {
+  /* ---------- persistence (profile + prompts survive a reload) ---------- */
+  async function saveState() {
     try {
-      window.localStorage.removeItem(KEY_NAME);
-      window.sessionStorage.removeItem(KEY_NAME);
-      if ($("apikey").value) store().setItem(KEY_NAME, $("apikey").value);
-      window.localStorage.setItem("fr_loop_remember", $("remember").checked ? "1" : "0");
-    } catch (e) {}
-  }
-  function loadKey() {
-    try {
-      $("remember").checked = window.localStorage.getItem("fr_loop_remember") === "1";
-      var k = window.localStorage.getItem(KEY_NAME) || window.sessionStorage.getItem(KEY_NAME);
-      if (k) $("apikey").value = k;
-    } catch (e) {}
-  }
-  function saveState() {
-    try {
-      window.localStorage.setItem(STATE_NAME, JSON.stringify({
-        profile: $("profile").value, objective: $("objective").value,
-        days: $("days").value, maxScreen: $("maxScreen").value,
-        tryFullText: $("tryFullText").checked,
-        modelThink: $("modelThink").value, modelScreen: $("modelScreen").value,
+      await window.storage.set("fr_loop_state", JSON.stringify({
+        profile: el("profile").value,
+        objective: el("objective").value,
+        days: el("days").value,
         prompts: { frame: prompts.frame.text, query: prompts.query.text,
                    judge: prompts.judge.text, brief: prompts.brief.text }
       }));
-    } catch (e) {}
+    } catch (e) { /* storage unavailable — not fatal */ }
   }
-  function loadState() {
+  async function loadState() {
     try {
-      var raw = window.localStorage.getItem(STATE_NAME);
-      if (!raw) return false;
-      var s = JSON.parse(raw);
-      if (s.profile) $("profile").value = s.profile;
-      if (s.objective) $("objective").value = s.objective;
-      if (s.days) $("days").value = s.days;
-      if (s.maxScreen) $("maxScreen").value = s.maxScreen;
-      if (typeof s.tryFullText === "boolean") $("tryFullText").checked = s.tryFullText;
-      if (s.modelThink) $("modelThink").value = s.modelThink;
-      if (s.modelScreen) $("modelScreen").value = s.modelScreen;
+      const r = await window.storage.get("fr_loop_state");
+      if (!r || !r.value) return false;
+      const s = JSON.parse(r.value);
+      if (s.profile) el("profile").value = s.profile;
+      if (s.objective) el("objective").value = s.objective;
+      if (s.days) el("days").value = s.days;
       if (s.prompts) {
-        Object.keys(s.prompts).forEach(function (k) {
+        Object.keys(s.prompts).forEach((k) => {
           if (prompts[k] && s.prompts[k]) prompts[k].text = s.prompts[k];
         });
       }
@@ -590,591 +706,408 @@
     } catch (e) { return false; }
   }
 
-  /* ---------------- the model call ---------------- */
-  function callClaude(system, user, model, maxTokens) {
-    var key = $("apikey").value.trim();
-    if (!key) return Promise.reject(new Error("No API key. Paste one in the bar at the top."));
-    return fetch(ANTHROPIC, {
+  /* ---------- the model call ---------- */
+  async function callClaude(system, user) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-        // Required for browser calls. See Anthropic's CORS support.
-        "anthropic-dangerous-direct-browser-access": "true"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: model, max_tokens: maxTokens || 2000,
-        system: system, messages: [{ role: "user", content: user }]
+        model: MODEL,
+        max_tokens: 1000,
+        system: system,
+        messages: [{ role: "user", content: user }]
       })
-    }).then(function (r) {
-      return r.json().then(function (d) {
-        if (!r.ok) {
-          var m = (d && d.error && d.error.message) || ("HTTP " + r.status);
-          throw new Error(m);
-        }
-        return d;
-      });
-    }).then(function (d) {
-      if (d.usage) { usage.in += d.usage.input_tokens; usage.out += d.usage.output_tokens; }
-      usage.calls++;
-      return d.content.filter(function (b) { return b.type === "text"; })
-        .map(function (b) { return b.text; }).join("\n");
     });
+    if (!res.ok) throw new Error("Model call failed (" + res.status + ")");
+    const data = await res.json();
+    return data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
   }
 
   function parseJSON(raw) {
-    var t = String(raw).trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-    var a = t.indexOf("["), o = t.indexOf("{");
-    var start = (a === -1) ? o : (o === -1 ? a : Math.min(a, o));
+    let t = String(raw).trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+    const a = t.indexOf("["), o = t.indexOf("{");
+    let start = (a === -1) ? o : (o === -1 ? a : Math.min(a, o));
     if (start > 0) t = t.slice(start);
-    var end = Math.max(t.lastIndexOf("]"), t.lastIndexOf("}"));
+    const lastA = t.lastIndexOf("]"), lastO = t.lastIndexOf("}");
+    const end = Math.max(lastA, lastO);
     if (end > -1) t = t.slice(0, end + 1);
     return JSON.parse(t);
   }
 
-  /* ---------------- the search call (code, not model) ---------------- */
-  function searchFR(term, type, since) {
-    var u = new URL(FR_API);
-    u.searchParams.set("per_page", "10");
-    u.searchParams.set("order", "newest");
-    u.searchParams.set("conditions[term]", term);
-    u.searchParams.set("conditions[publication_date][gte]", since);
-    if (type) u.searchParams.append("conditions[type][]", type);
-    FIELDS.forEach(function (f) { u.searchParams.append("fields[]", f); });
-    return fetch(u.toString()).then(function (r) {
-      if (!r.ok) throw new Error("Federal Register returned " + r.status);
-      return r.json();
-    }).then(function (d) { return d.results || []; });
-  }
-
-  function fetchFullText(doc) {
-    if (!doc.raw_text_url) return Promise.resolve(null);
-    return fetch(doc.raw_text_url).then(function (r) {
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.text();
-    }).then(function (t) { return t.replace(/\n{3,}/g, "\n\n"); })
-      .catch(function () { return null; });
+  /* ---------- the search call (code, not model) ---------- */
+  async function searchFR(term, type, sinceISO) {
+    const url = new URL(FR_API);
+    url.searchParams.set("per_page", "8");
+    url.searchParams.set("order", "newest");
+    url.searchParams.set("conditions[term]", term);
+    url.searchParams.set("conditions[publication_date][gte]", sinceISO);
+    if (type) url.searchParams.append("conditions[type][]", type);
+    ["title", "abstract", "document_number", "publication_date", "type",
+     "agencies", "html_url", "comments_close_on", "effective_on"]
+      .forEach((f) => url.searchParams.append("fields[]", f));
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error("Federal Register returned " + res.status);
+    const data = await res.json();
+    return data.results || [];
   }
 
   function agencyOf(doc) {
-    var ags = doc.agencies || [];
-    var names = ags.map(function (a) { return a.name || a.raw_name; }).filter(Boolean);
-    return names.length ? names.join(", ") : "Agency not listed";
+    if (Array.isArray(doc.agencies) && doc.agencies.length) {
+      return doc.agencies.map((a) => a.name || a.raw_name).filter(Boolean).join(", ");
+    }
+    return "Agency not listed";
   }
+
   function daysUntil(iso) {
     if (!iso) return null;
-    var d = Math.ceil((new Date(iso + "T00:00:00") - new Date()) / 86400000);
+    const d = Math.ceil((new Date(iso + "T00:00:00") - new Date()) / 86400000);
     return isNaN(d) ? null : d;
   }
-  function usageLine() {
-    return usage.calls + " model calls \u00b7 " + usage.in.toLocaleString() +
-           " tokens in \u00b7 " + usage.out.toLocaleString() + " tokens out";
-  }
 
-  /* ---------------- download / copy ---------------- */
-  function download(filename, text, mime) {
-    try {
-      var blob = new Blob([text], { type: mime || "text/plain;charset=utf-8" });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-      return true;
-    } catch (e) { return false; }
-  }
-  function copyText(text, btn, label) {
-    function done(ok) {
-      btn.textContent = ok ? "Copied" : "Copy blocked \u2014 select it below";
-      setTimeout(function () { btn.textContent = label; }, ok ? 1600 : 3200);
-    }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () { done(true); },
-        function () { fallback(); });
-    } else { fallback(); }
-    function fallback() {
-      try {
-        var ta = document.createElement("textarea");
-        ta.value = text; ta.setAttribute("readonly", "");
-        ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
-        document.body.appendChild(ta); ta.select();
-        var ok = document.execCommand("copy");
-        document.body.removeChild(ta); done(ok);
-      } catch (e) { done(false); }
-    }
-  }
-
-  /* ---------------- rendering ---------------- */
+  /* ============================================================
+     RENDERING
+     ============================================================ */
   function renderRail() {
-    $("rail").innerHTML = STAGES.map(function (s) {
-      return '<div class="stage" id="stage-' + s.id + '" data-state="idle">' +
-        '<button class="stage-head" data-toggle="' + s.id + '" aria-expanded="false">' +
-        '<span class="stage-num">' + s.num + '</span>' +
-        '<span class="stage-name">' + s.name + '<span class="stage-owner">' + s.owner + '</span></span>' +
-        '<span class="stage-count" id="count-' + s.id + '">\u2014</span></button>' +
-        '<div class="stage-body" id="body-' + s.id + '" hidden></div></div>';
-    }).join("");
-    Array.prototype.forEach.call($("rail").querySelectorAll("[data-toggle]"), function (b) {
-      b.addEventListener("click", function () {
-        var body = $("body-" + b.dataset.toggle);
-        var open = body.hidden;
+    el("rail").innerHTML = STAGES.map((s) => `
+      <div class="stage" id="stage-${s.id}" data-state="idle">
+        <button class="stage-head" data-toggle="${s.id}" aria-expanded="false">
+          <span class="stage-num">${s.num}</span>
+          <span class="stage-name">${s.name}<span class="stage-owner">${s.owner}</span></span>
+          <span class="stage-count" id="count-${s.id}">—</span>
+        </button>
+        <div class="stage-body" id="body-${s.id}" hidden></div>
+      </div>`).join("");
+
+    el("rail").querySelectorAll("[data-toggle]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const body = el("body-" + b.dataset.toggle);
+        const open = body.hidden;
         body.hidden = !open;
         b.setAttribute("aria-expanded", String(open));
       });
     });
   }
+
   function setStage(id, state, count, open) {
-    $("stage-" + id).dataset.state = state;
-    if (count !== undefined) $("count-" + id).textContent = count;
+    el("stage-" + id).dataset.state = state;
+    if (count !== undefined) el("count-" + id).textContent = count;
     if (open) {
-      $("body-" + id).hidden = false;
-      $("rail").querySelector('[data-toggle="' + id + '"]').setAttribute("aria-expanded", "true");
+      el("body-" + id).hidden = false;
+      el("rail").querySelector('[data-toggle="' + id + '"]').setAttribute("aria-expanded", "true");
     }
   }
-  function setBody(id, html) { $("body-" + id).innerHTML = html; }
+  function setBody(id, html) { el("body-" + id).innerHTML = html; }
 
   function renderPromptEditors() {
-    var host = $("promptEditors");
-    host.innerHTML = Object.keys(prompts).map(function (k) {
-      return '<details class="prompt"><summary>' + prompts[k].label + '</summary>' +
-        '<div class="pbody"><p class="hint">' + prompts[k].help + '</p>' +
-        '<textarea rows="14" data-prompt="' + k + '" spellcheck="false">' +
-        esc(prompts[k].text) + '</textarea></div></details>';
-    }).join("");
-    Array.prototype.forEach.call(host.querySelectorAll("[data-prompt]"), function (t) {
-      t.addEventListener("input", function () {
-        prompts[t.dataset.prompt].text = t.value; saveState();
+    el("promptEditors").innerHTML = Object.keys(prompts).map((k) => `
+      <details class="prompt">
+        <summary>${prompts[k].label}</summary>
+        <div class="body">
+          <p class="hint">${prompts[k].help}</p>
+          <textarea rows="12" data-prompt="${k}" spellcheck="false">${esc(prompts[k].text)}</textarea>
+        </div>
+      </details>`).join("");
+
+    el("promptEditors").querySelectorAll("[data-prompt]").forEach((t) => {
+      t.addEventListener("input", () => {
+        prompts[t.dataset.prompt].text = t.value;
+        saveState();
       });
     });
   }
 
-  function docCard(doc, v, hadFull) {
-    var kept = v && v.keep;
-    var dl = daysUntil(doc.comments_close_on);
-    var chips = [];
-    if (v) {
-      chips.push(kept ? '<span class="chip keep">kept \u00b7 ' + v.score + '/5</span>'
-                      : '<span class="chip cut">cut \u00b7 ' + v.score + '/5</span>');
+  function docCard(doc, verdict) {
+    const kept = verdict && verdict.keep;
+    const dl = daysUntil(doc.comments_close_on);
+    const chips = [];
+    if (verdict) {
+      chips.push(kept
+        ? `<span class="chip keep">kept · ${verdict.score}/5</span>`
+        : `<span class="chip cut">cut · ${verdict.score}/5</span>`);
     }
-    if (hadFull) chips.push('<span class="chip full">full text</span>');
     if (dl !== null && dl >= 0 && kept) {
-      chips.push('<span class="chip deadline">comment closes in ' + dl + ' d</span>');
+      chips.push(`<span class="chip deadline">comment closes in ${dl} d</span>`);
     }
-    return '<div class="receipt ' + (kept === false ? "dropped" : "") + '">' +
-      '<div class="receipt-top"><div style="flex:1 1 320px;min-width:0">' +
-      '<p class="doc-title"><a href="' + esc(doc.html_url) + '" target="_blank" rel="noopener noreferrer">' +
-      esc(doc.title) + '</a></p><div class="meta">' +
-      '<span>' + esc(doc.document_number) + '</span>' +
-      '<span>' + esc(doc.type || "\u2014") + '</span>' +
-      '<span>' + esc(doc.publication_date || "\u2014") + '</span>' +
-      '<span>' + esc(agencyOf(doc)) + '</span></div></div>' +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap">' + chips.join("") + '</div></div>' +
-      (v ? '<p class="why">' + esc(v.why) + '</p>' : "") +
-      (v && v.evidence ? '<p class="evidence">' + esc(v.evidence) + '</p>' : "") +
-      '</div>';
+    return `
+      <div class="receipt ${kept === false ? "dropped" : ""}">
+        <div class="receipt-top">
+          <div style="flex:1 1 320px; min-width:0">
+            <p class="doc-title"><a href="${esc(doc.html_url)}" target="_blank" rel="noopener">${esc(doc.title)}</a></p>
+            <div class="meta">
+              <span>${esc(doc.document_number)}</span>
+              <span>${esc(doc.type || "—")}</span>
+              <span>${esc(doc.publication_date || "—")}</span>
+              <span>${esc(agencyOf(doc))}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap">${chips.join("")}</div>
+        </div>
+        ${verdict ? `<p class="why">${esc(verdict.why)}</p>` : ""}
+      </div>`;
   }
 
-  /* =====================================================================
-     THE LOOP — read this top to bottom. The order never changes.
-     ===================================================================== */
-  function run() {
+  /* ============================================================
+     THE LOOP — this function is the whole argument.
+     Read it top to bottom. The order never changes.
+     ============================================================ */
+  async function run() {
     if (running) return;
-    if (!$("apikey").value.trim()) {
-      $("banner").innerHTML = '<div class="banner"><strong>No API key</strong><br>' +
-        'Paste an Anthropic key in the bar at the top. It stays in this browser.</div>';
-      return;
-    }
     running = true;
-    $("runBtn").disabled = true;
-    $("runBtn").textContent = "Running\u2026";
-    $("banner").innerHTML = "";
-    $("outToolbar").innerHTML = "";
-    usage = { in: 0, out: 0, calls: 0 };
+    el("runBtn").disabled = true;
+    el("runBtn").textContent = "Running…";
+    el("banner").innerHTML = "";
+    el("outToolbar").innerHTML = "";
     receipts = { startedAt: new Date().toISOString() };
+    usedFixtures = false;
     renderRail();
 
-    var profile = $("profile").value.trim();
-    var objective = $("objective").value.trim() || DEFAULT_OBJECTIVE;
-    var days = Math.max(1, parseInt($("days").value, 10) || 60);
-    var maxScreen = Math.max(1, parseInt($("maxScreen").value, 10) || 40);
-    var wantFull = $("tryFullText").checked;
-    var mThink = $("modelThink").value.trim();
-    var mScreen = $("modelScreen").value.trim();
-    var since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
-    var ctx = "NEWSROOM PROFILE:\n" + profile + "\n\nTHIS RUN:\n" + objective;
+    const profile = el("profile").value.trim();
+    const objective = el("objective").value.trim() || DEFAULT_OBJECTIVE;
+    const days = Math.max(1, parseInt(el("days").value, 10) || 60);
+    const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    const ctx = `NEWSROOM PROFILE:\n${profile}\n\nTHIS RUN:\n${objective}`;
 
-    var angles, queries, docs, usedFixtures = false, fullTextMap = {}, fullOK = 0, fullTried = 0;
+    try {
+      /* -------- 01 FRAME -------- */
+      setStage("frame", "running", "thinking…", true);
+      const angles = parseJSON(await callClaude(prompts.frame.text, ctx));
+      receipts.angles = angles;
+      setStage("frame", "done", angles.length + " angles");
+      setBody("frame", `<p class="note">One model call. Your profile and assignment went in; nothing else.</p>` +
+        angles.map((a, i) => `
+          <div class="receipt">
+            <div class="meta"><span>angle ${i + 1}</span></div>
+            <p class="doc-title" style="border:none">${esc(a.angle)}</p>
+            <p class="why">${esc(a.rationale)}</p>
+          </div>`).join(""));
 
-    /* -------- 01 FRAME -------- */
-    setStage("frame", "running", "thinking\u2026", true);
-    callClaude(prompts.frame.text, ctx, mThink, 1500)
-      .then(function (raw) {
-        angles = parseJSON(raw);
-        receipts.angles = angles;
-        setStage("frame", "done", angles.length + " angles");
-        setBody("frame", '<p class="note">One model call. Your profile and assignment went in; nothing else.</p>' +
-          angles.map(function (a, i) {
-            return '<div class="receipt"><div class="meta"><span>angle ' + (i + 1) + '</span></div>' +
-              '<p class="doc-title" style="border:none">' + esc(a.angle) + '</p>' +
-              '<p class="why">' + esc(a.rationale) + '</p></div>';
-          }).join(""));
+      /* -------- 02 QUERY -------- */
+      setStage("query", "running", "thinking…", true);
+      const queries = parseJSON(await callClaude(prompts.query.text,
+        ctx + "\n\nANGLES:\n" + JSON.stringify(angles)));
+      receipts.queries = queries;
+      setStage("query", "done", queries.length + " searches");
+      setBody("query", `<p class="note">The model wrote these search terms. It does not run them — the next stage does, in code.</p>` +
+        queries.map((q) => `
+          <div class="receipt">
+            <p class="doc-title" style="border:none">“${esc(q.term)}”</p>
+            <div class="meta"><span>type: ${esc(q.type || "any")}</span><span>since ${since}</span><span>${esc(q.angle || "")}</span></div>
+          </div>`).join(""));
 
-        /* -------- 02 QUERY -------- */
-        setStage("query", "running", "thinking\u2026", true);
-        return callClaude(prompts.query.text,
-          ctx + "\n\nANGLES:\n" + JSON.stringify(angles, null, 2), mThink, 1500);
-      })
-      .then(function (raw) {
-        queries = parseJSON(raw);
-        receipts.queries = queries;
-        setStage("query", "done", queries.length + " searches");
-        setBody("query", '<p class="note">The model wrote these search terms. It does not run them \u2014 the next stage does, in code.</p>' +
-          queries.map(function (q) {
-            return '<div class="receipt"><p class="doc-title" style="border:none">\u201c' +
-              esc(q.term) + '\u201d</p><div class="meta"><span>type: ' + esc(q.type || "any") +
-              '</span><span>since ' + since + '</span><span>' + esc(q.angle || "") + '</span></div></div>';
-          }).join(""));
-
-        /* -------- 03 FETCH — pure code -------- */
-        setStage("fetch", "running", "0 of " + queries.length, true);
-        var perQuery = [], raw2 = [], i = 0;
-
-        function nextQuery() {
-          if (i >= queries.length) return Promise.resolve();
-          var q = queries[i];
-          return searchFR(q.term, q.type, since)
-            .then(function (hits) {
-              perQuery.push({ term: q.term, type: q.type, count: hits.length, error: "" });
-              raw2 = raw2.concat(hits);
-            })
-            .catch(function (e) {
-              usedFixtures = true;
-              var first = String(q.term).split(/\s+/)[0].toLowerCase();
-              var hits = FIXTURES.filter(function (d) {
-                return (d.title + " " + d.abstract).toLowerCase().indexOf(first) !== -1;
-              });
-              if (!hits.length) hits = FIXTURES.slice(i * 2, i * 2 + 2);
-              perQuery.push({ term: q.term, type: q.type, count: hits.length, error: e.message });
-              raw2 = raw2.concat(hits);
-            })
-            .then(function () {
-              i++;
-              setStage("fetch", "running", i + " of " + queries.length);
-              return nextQuery();
-            });
+      /* -------- 03 FETCH — pure code -------- */
+      setStage("fetch", "running", "0 searches run", true);
+      const perQuery = [];
+      let raw = [];
+      for (let i = 0; i < queries.length; i++) {
+        const q = queries[i];
+        let hits = [];
+        let err = null;
+        try {
+          hits = await searchFR(q.term, q.type, since);
+        } catch (e) {
+          err = e.message;
+          if (!usedFixtures) usedFixtures = true;
         }
-
-        return nextQuery().then(function () {
-          if (usedFixtures) {
-            $("banner").innerHTML = '<div class="banner"><strong>Sample data in use</strong><br>' +
-              'The browser could not reach the Federal Register API. If you opened this file directly, ' +
-              'try serving it instead: <code>python3 -m http.server 8000</code> in this folder, then ' +
-              'localhost:8000. Everything below ran on clearly labelled sample documents \u2014 every title ' +
-              'starts with [SAMPLE DATA] and no document number is real. Do not report anything from these.</div>';
-          }
-          var seen = {}, unique = [];
-          raw2.forEach(function (d) {
-            if (seen[d.document_number]) return;
-            seen[d.document_number] = 1; unique.push(d);
-          });
-          var removed = raw2.length - unique.length;
-          docs = unique.slice(0, maxScreen);
-          var capped = unique.length - docs.length;
-          receipts.fetch = { perQuery: perQuery, rawCount: raw2.length,
-                             duplicatesRemoved: removed, screened: docs.length,
-                             usedFixtures: usedFixtures };
-          var zeros = perQuery.filter(function (p) { return p.count === 0; });
-          setStage("fetch", "done", docs.length + " documents");
-          setBody("fetch",
-            '<p class="note">No model call here. Code ran ' + queries.length + ' searches, removed ' +
-            removed + ' duplicate' + (removed === 1 ? "" : "s") + ' by document number' +
-            (capped > 0 ? ', and capped the list at ' + maxScreen + ' (' + capped + ' not judged)' : '') +
-            '. Run it again and these numbers will be identical.</p>' +
-            perQuery.map(function (p) {
-              return '<div class="receipt ' + (p.count === 0 ? "zero" : "") + '"><div class="receipt-top">' +
-                '<span>\u201c' + esc(p.term) + '\u201d \u00b7 ' + esc(p.type || "any") + '</span>' +
-                '<span>' + p.count + ' result' + (p.count === 1 ? "" : "s") + '</span></div></div>';
-            }).join("") +
-            (zeros.length
-              ? '<p class="note" style="border-color:var(--flag)">' + zeros.length + ' search' +
-                (zeros.length === 1 ? "" : "es") + ' came back empty. That is a finding, not a failure \u2014 ' +
-                'it is the receipt behind \u201cwe found no federal activity on this.\u201d</p>'
-              : '<p class="note">Every search returned something. When one comes back empty, it stays on this list.</p>'));
-
-          /* -------- 03b FULL TEXT (best effort) -------- */
-          if (!wantFull || usedFixtures) return;
-          setStage("fetch", "running", "fetching text\u2026");
-          var withUrl = docs.filter(function (d) { return d.raw_text_url; });
-          fullTried = withUrl.length;
-          return Promise.all(withUrl.map(function (d) {
-            return fetchFullText(d).then(function (t) {
-              if (t) { fullTextMap[d.document_number] = t; fullOK++; }
-            });
-          })).then(function () {
-            receipts.fullText = { attempted: fullTried, succeeded: fullOK };
-            setStage("fetch", "done", docs.length + " documents");
-            var msg;
-            if (fullOK === 0 && fullTried > 0) {
-              msg = '<div class="banner"><strong>Full text blocked</strong><br>The browser was not allowed to ' +
-                'fetch the document bodies \u2014 ' + fullTried + ' attempted, none retrieved. Stage 04 will screen ' +
-                'abstracts only. This is the wall the Colab notebook exists to get past: the abstract is the ' +
-                'agency summarising itself, and the preamble is where the cost estimates and the responses to ' +
-                'objections are.</div>';
-            } else if (fullOK > 0) {
-              msg = '<div class="banner ok"><strong>Full text retrieved</strong><br>' + fullOK + ' of ' +
-                fullTried + ' document bodies fetched. Stage 04 screens the real text, not the abstract.</div>';
-            } else { msg = ""; }
-            $("banner").innerHTML += msg;
-          });
-        });
-      })
-      .then(function () {
-        /* -------- 04 JUDGE — one call per document -------- */
-        setStage("judge", "running", "0 of " + docs.length, true);
-        var verdicts = [], done = 0, LIMIT = 5, idx = 0;
-
-        function judgeOne(doc) {
-          var full = fullTextMap[doc.document_number];
-          var body = full ? full.slice(0, 12000) : (doc.abstract || "(no abstract provided)");
-          var payload = ctx + "\n\nDOCUMENT\n" +
-            "Title: " + doc.title + "\n" +
-            "Type: " + (doc.type || "") + "\n" +
-            "Agency: " + agencyOf(doc) + "\n" +
-            "Published: " + (doc.publication_date || "") + "\n" +
-            "Comments close: " + (doc.comments_close_on || "none") + "\n" +
-            "Effective: " + (doc.effective_on || "none") + "\n\n" +
-            (full ? "FULL TEXT:\n" : "ABSTRACT ONLY:\n") + body;
-          return callClaude(prompts.judge.text, payload, mScreen, 700)
-            .then(function (raw) { return parseJSON(raw); })
-            .catch(function (e) {
-              return { keep: false, score: 0, why: "Could not be screened: " + e.message, evidence: "" };
-            })
-            .then(function (v) {
-              v.score = Number(v.score) || 0;
-              v.keep = !!v.keep && v.score >= 3;
-              done++;
-              setStage("judge", "running", done + " of " + docs.length);
-              return { doc: doc, verdict: v, hadFull: !!full };
-            });
+        if (err && usedFixtures) {
+          hits = FIXTURES.filter((d) =>
+            (d.title + " " + d.abstract).toLowerCase()
+              .includes(String(q.term).split(/\s+/)[0].toLowerCase())
+          );
+          if (!hits.length) hits = FIXTURES.slice(i * 2, i * 2 + 2);
         }
+        perQuery.push({ term: q.term, type: q.type, count: hits.length, error: err });
+        raw = raw.concat(hits);
+        setStage("fetch", "running", (i + 1) + " of " + queries.length + " searches");
+      }
 
-        function worker() {
-          if (idx >= docs.length) return Promise.resolve();
-          var d = docs[idx++];
-          return judgeOne(d).then(function (r) { verdicts.push(r); return worker(); });
+      if (usedFixtures) {
+        el("banner").innerHTML = `<div class="banner"><strong>Sample data in use</strong><br>
+          The browser could not reach the Federal Register API directly — almost certainly a CORS
+          restriction, which is a browser limitation, not a problem with your setup. Everything below ran on
+          clearly labelled sample documents. Every title starts with [SAMPLE DATA] and no document number is real.
+          Do not report anything from these. In session 2 we run this from Colab, where the restriction doesn't apply.</div>`;
+      }
+
+      // Deduplicate — code, not judgment.
+      const seen = new Set();
+      const unique = [];
+      for (const d of raw) {
+        if (seen.has(d.document_number)) continue;
+        seen.add(d.document_number);
+        unique.push(d);
+      }
+      const removed = raw.length - unique.length;
+      const docs = unique.slice(0, 24);
+      const capped = unique.length - docs.length;
+      receipts.fetch = { perQuery, rawCount: raw.length, duplicatesRemoved: removed, judged: docs.length, usedFixtures };
+
+      const zeros = perQuery.filter((p) => p.count === 0);
+      setStage("fetch", "done", docs.length + " documents");
+      setBody("fetch",
+        `<p class="note">No model call here. Code ran ${queries.length} searches, removed ${removed} duplicate${removed === 1 ? "" : "s"} by document number${capped > 0 ? `, and capped the list at 24 (${capped} not judged)` : ""}. Run it again and these numbers will be identical.</p>` +
+        perQuery.map((p) => `
+          <div class="receipt ${p.count === 0 ? "zero" : ""}">
+            <div class="receipt-top">
+              <span>“${esc(p.term)}” · ${esc(p.type || "any")}</span>
+              <span>${p.count} result${p.count === 1 ? "" : "s"}</span>
+            </div>
+          </div>`).join("") +
+        (zeros.length
+          ? `<p class="note" style="border-color:var(--flag)">${zeros.length} search${zeros.length === 1 ? "" : "es"} came back empty. That is a finding, not a failure — it is the receipt behind “we found no federal activity on this.” A chat assistant would not have shown you this.</p>`
+          : `<p class="note">Every search returned something. When one comes back empty, it stays on this list.</p>`));
+
+      /* -------- 04 JUDGE — one call per document, no shared context -------- */
+      setStage("judge", "running", "0 of " + docs.length, true);
+      const verdicts = [];
+      let done = 0;
+      const LIMIT = 4;
+
+      async function judgeOne(doc) {
+        const payload =
+          ctx + "\n\nDOCUMENT:\n" +
+          "Title: " + doc.title + "\n" +
+          "Type: " + (doc.type || "") + "\n" +
+          "Agency: " + agencyOf(doc) + "\n" +
+          "Published: " + (doc.publication_date || "") + "\n" +
+          "Comments close: " + (doc.comments_close_on || "none") + "\n" +
+          "Effective: " + (doc.effective_on || "none") + "\n" +
+          "Abstract: " + (doc.abstract || "(no abstract provided)");
+        let v;
+        try {
+          v = parseJSON(await callClaude(prompts.judge.text, payload));
+        } catch (e) {
+          v = { keep: false, score: 0, why: "Could not be screened: " + e.message };
         }
+        v.keep = !!v.keep && Number(v.score) >= 3;
+        v.score = Number(v.score) || 0;
+        done++;
+        setStage("judge", "running", done + " of " + docs.length);
+        return { doc, verdict: v };
+      }
 
-        var pool = [];
-        for (var w = 0; w < Math.min(LIMIT, docs.length); w++) pool.push(worker());
-        return Promise.all(pool).then(function () { return verdicts; });
-      })
-      .then(function (verdicts) {
-        verdicts.sort(function (a, b) { return b.verdict.score - a.verdict.score; });
-        var kept = verdicts.filter(function (v) { return v.verdict.keep; });
-        var cut = verdicts.filter(function (v) { return !v.verdict.keep; });
-        receipts.verdicts = verdicts.map(function (v) {
-          return { document_number: v.doc.document_number, title: v.doc.title,
-                   type: v.doc.type, agency: agencyOf(v.doc),
-                   comments_close_on: v.doc.comments_close_on || "",
-                   keep: v.verdict.keep, score: v.verdict.score,
-                   why: v.verdict.why, evidence: v.verdict.evidence || "",
-                   screened_on: v.hadFull ? "full text" : "abstract",
-                   url: v.doc.html_url };
-        });
+      for (let i = 0; i < docs.length; i += LIMIT) {
+        const batch = await Promise.all(docs.slice(i, i + LIMIT).map(judgeOne));
+        verdicts.push.apply(verdicts, batch);
+      }
 
-        setStage("judge", "done", kept.length + " kept \u00b7 " + cut.length + " cut");
-        setBody("judge",
-          '<p class="note">' + docs.length + ' separate model calls, one per document, 5 at a time. ' +
-          'None of them could see the others. That is why this scales, why the cost is predictable, ' +
-          'and why the model cannot claim to have read something it didn\u2019t.</p>' +
-          kept.map(function (v) { return docCard(v.doc, v.verdict, v.hadFull); }).join("") +
-          (cut.length ? '<p class="note">Cut, with reasons. These stay on screen on purpose \u2014 an editor should be able to challenge a cut.</p>' : "") +
-          cut.map(function (v) { return docCard(v.doc, v.verdict, v.hadFull); }).join(""));
+      verdicts.sort((a, b) => b.verdict.score - a.verdict.score);
+      const kept = verdicts.filter((v) => v.verdict.keep);
+      const cut = verdicts.filter((v) => !v.verdict.keep);
+      receipts.verdicts = verdicts.map((v) => ({
+        document_number: v.doc.document_number, title: v.doc.title,
+        keep: v.verdict.keep, score: v.verdict.score, why: v.verdict.why
+      }));
 
-        /* -------- 05 BRIEF -------- */
-        setStage("brief", "running", "writing\u2026", true);
-        var mThink2 = $("modelThink").value.trim();
-        var p;
-        if (!kept.length) {
-          p = Promise.resolve("Nothing cleared the bar this run. That may be a quiet month, or the search " +
-            "terms in stage 02 may be wrong for this beat \u2014 open that stage and read what was actually searched.");
-        } else {
-          var digest = kept.slice(0, 12).map(function (v) {
-            return "- " + v.doc.title + " (" + v.doc.type + ", " + agencyOf(v.doc) +
-              (v.doc.comments_close_on ? ", comments close " + v.doc.comments_close_on : "") +
-              ") -- " + v.verdict.why;
-          }).join("\n");
-          p = callClaude(prompts.brief.text, ctx + "\n\nKEPT ITEMS:\n" + digest, mThink2, 1200);
-        }
-        return p.then(function (lede) { return { kept: kept, cut: cut, lede: lede.trim() }; });
-      })
-      .then(function (r) {
-        var kept = r.kept, lede = r.lede;
-        var items = kept.map(function (v, i) {
-          var d = v.doc, dl = daysUntil(d.comments_close_on);
-          return (i + 1) + ". " + d.title +
-            "\n   " + d.type + " \u00b7 " + agencyOf(d) + " \u00b7 " + d.publication_date + " \u00b7 " + d.document_number +
-            (dl !== null && dl >= 0 ? "\n   COMMENT DEADLINE: " + d.comments_close_on + " (" + dl + " days)" : "") +
-            "\n   " + v.verdict.why +
-            (v.verdict.evidence ? "\n   > " + v.verdict.evidence : "") +
-            "\n   " + d.html_url;
-        }).join("\n\n");
+      setStage("judge", "done", kept.length + " kept · " + cut.length + " cut");
+      setBody("judge",
+        `<p class="note">${docs.length} separate model calls, one per document, ${LIMIT} at a time. None of them could see the others. That is why this scales to 200 documents and why the cost is predictable — and it is why the model cannot claim to have read something it didn't.</p>` +
+        kept.map((v) => docCard(v.doc, v.verdict)).join("") +
+        (cut.length ? `<p class="note">Cut, with reasons. These stay on screen on purpose — an editor should be able to challenge a cut.</p>` : "") +
+        cut.map((v) => docCard(v.doc, v.verdict)).join(""));
 
-        var memo = "FEDERAL REGISTER BRIEF\n" +
-          "Generated " + new Date().toLocaleDateString() + " \u00b7 looking back " + $("days").value + " days\n" +
-          receipts.queries.length + " searches \u00b7 " + receipts.fetch.screened + " documents screened \u00b7 " +
-          kept.length + " kept" +
-          (receipts.fullText && receipts.fullText.succeeded ? " \u00b7 " + receipts.fullText.succeeded + " read in full" : " \u00b7 abstracts only") +
-          "\n" + (receipts.fetch.usedFixtures ? "\n*** SAMPLE DATA \u2014 NOT REAL FEDERAL DOCUMENTS ***\n" : "") +
-          "\n" + lede + "\n\n" + new Array(41).join("\u2014") + "\n\n" + (items || "(no items)");
+      /* -------- 05 BRIEF -------- */
+      setStage("brief", "running", "writing…", true);
+      let lede;
+      if (!kept.length) {
+        lede = "Nothing cleared the bar this run. That may mean a quiet month, or it may mean the search terms in stage 02 are wrong for this beat — open that stage and look at what was actually searched.";
+      } else {
+        const digest = kept.slice(0, 10).map((v) =>
+          `- ${v.doc.title} (${v.doc.type}, ${agencyOf(v.doc)}${v.doc.comments_close_on ? ", comments close " + v.doc.comments_close_on : ""}) — ${v.verdict.why}`
+        ).join("\n");
+        lede = (await callClaude(prompts.brief.text, ctx + "\n\nKEPT ITEMS:\n" + digest)).trim();
+      }
+      receipts.lede = lede;
 
-        receipts.lede = lede;
-        receipts.memo = memo;
-        receipts.usage = usage;
-        receipts.finishedAt = new Date().toISOString();
-        var receiptJSON = JSON.stringify(receipts, null, 2);
+      const items = kept.map((v, i) => {
+        const dl = daysUntil(v.doc.comments_close_on);
+        return `${i + 1}. ${v.doc.title}\n   ${v.doc.type} · ${agencyOf(v.doc)} · ${v.doc.publication_date} · ${v.doc.document_number}` +
+          (dl !== null && dl >= 0 ? `\n   COMMENT DEADLINE: ${v.doc.comments_close_on} (${dl} days)` : "") +
+          `\n   ${v.verdict.why}\n   ${v.doc.html_url}`;
+      }).join("\n\n");
 
-        setStage("brief", "done", kept.length + " items");
-        setBody("brief",
-          '<p class="note">One short model call wrote the lede. Everything under it \u2014 titles, deadlines, ' +
-          'links, numbering \u2014 was assembled by code from stage 04, so nothing in the list can be invented.</p>' +
-          '<div class="brief">' + esc(memo) + '</div>' +
-          '<p class="note" style="margin-top:12px">' + usageLine() + '</p>');
+      const memo = `FEDERAL REGISTER BRIEF\nGenerated ${new Date().toLocaleDateString()} · looking back ${days} days\n` +
+        `${queries.length} searches · ${docs.length} documents screened · ${kept.length} kept\n` +
+        (usedFixtures ? `\n*** SAMPLE DATA — NOT REAL FEDERAL DOCUMENTS ***\n` : "") +
+        `\n${lede}\n\n${"—".repeat(40)}\n\n${items || "(no items)"}`;
+      receipts.memo = memo;
 
-        var stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
-        $("outToolbar").innerHTML =
-          '<button class="btn solid" id="dlBrief">Download brief (.md)</button>' +
-          '<button class="btn solid" id="dlReceipts">Download receipts (.json)</button>' +
-          '<button class="btn" id="dlCsv">Download verdicts (.csv)</button>' +
-          '<button class="btn" id="copyBrief">Copy brief</button>' +
-          '<button class="btn" id="showReceipts">Show receipts</button>' +
-          '<div class="export" id="exportPanel" hidden>' +
-          '<p class="note">Everything this run did, as one file. If a download was blocked, select and copy from here.</p>' +
-          '<textarea id="receiptText" rows="16" spellcheck="false" readonly></textarea></div>';
+      setStage("brief", "done", kept.length + " items");
+      setBody("brief",
+        `<p class="note">One short model call wrote the lede. Everything under it — titles, deadlines, links, numbering — was assembled by code from stage 04, so nothing in the list can be invented.</p>
+         <div class="brief">${esc(memo)}</div>`);
 
-        $("dlBrief").onclick = function () {
-          if (!download("fr-brief-" + stamp + ".md", memo, "text/markdown;charset=utf-8"))
-            $("dlBrief").textContent = "Download blocked";
-        };
-        $("dlReceipts").onclick = function () {
-          if (!download("fr-receipts-" + stamp + ".json", receiptJSON, "application/json"))
-            $("dlReceipts").textContent = "Download blocked";
-        };
-        $("dlCsv").onclick = function () {
-          var cols = ["document_number","keep","score","screened_on","type","agency",
-                      "comments_close_on","title","why","evidence","url"];
-          var q = function (s) { return '"' + String(s == null ? "" : s).replace(/"/g, '""') + '"'; };
-          var csv = cols.join(",") + "\n" + receipts.verdicts.map(function (v) {
-            return cols.map(function (c) { return q(v[c]); }).join(",");
-          }).join("\n");
-          download("fr-verdicts-" + stamp + ".csv", csv, "text/csv;charset=utf-8");
-        };
-        $("copyBrief").onclick = function (e) { copyText(memo, e.currentTarget, "Copy brief"); };
-        $("receiptText").value = receiptJSON;
-        $("showReceipts").onclick = function () {
-          var pnl = $("exportPanel");
-          pnl.hidden = !pnl.hidden;
-          $("showReceipts").textContent = pnl.hidden ? "Show receipts" : "Hide receipts";
-        };
-      })
-      .catch(function (e) {
-        var active = null;
-        STAGES.forEach(function (s) {
-          if ($("stage-" + s.id).dataset.state === "running") active = s;
-        });
-        if (active) {
-          setStage(active.id, "error", "stopped", true);
-          setBody(active.id, '<div class="banner"><strong>Stage ' + active.num + ' stopped</strong><br>' +
-            esc(e.message) + '<br><br>The stages after this one did not run. Nothing was invented to fill the gap.</div>');
-        } else {
-          $("banner").innerHTML = '<div class="banner"><strong>Stopped</strong><br>' + esc(e.message) + '</div>';
-        }
-      })
-      .then(function () {
-        running = false;
-        $("runBtn").disabled = false;
-        $("runBtn").textContent = "Run the loop";
-      });
+      receipts.finishedAt = new Date().toISOString();
+      const receiptJSON = JSON.stringify(receipts, null, 2);
+
+      el("outToolbar").innerHTML =
+        `<button class="subtle-btn" id="copyBrief">Copy brief</button>
+         <button class="subtle-btn" id="copyReceipts">Copy all receipts (JSON)</button>
+         <button class="subtle-btn" id="showReceipts">Show all receipts</button>
+         <div class="export" id="exportPanel" hidden>
+           <p class="note">Every stage of this run, as one file. This is what would be sitting in a
+           folder on disk if you ran the loop from Colab — the browser can't write files, which is
+           one of the reasons session 2 moves out of here.</p>
+           <textarea id="receiptText" rows="16" spellcheck="false" readonly></textarea>
+         </div>`;
+
+      el("copyBrief").onclick = (e) => copyText(memo, e.currentTarget, "Copy brief");
+      el("copyReceipts").onclick = (e) =>
+        copyText(receiptJSON, e.currentTarget, "Copy all receipts (JSON)");
+      el("receiptText").value = receiptJSON;
+      el("showReceipts").onclick = () => {
+        const p = el("exportPanel");
+        p.hidden = !p.hidden;
+        el("showReceipts").textContent = p.hidden ? "Show all receipts" : "Hide receipts";
+        if (!p.hidden) el("receiptText").scrollIntoView({ block: "nearest" });
+      };
+
+    } catch (e) {
+      const active = STAGES.find((s) => el("stage-" + s.id).dataset.state === "running");
+      if (active) {
+        setStage(active.id, "error", "stopped", true);
+        setBody(active.id, `<div class="banner"><strong>Stage ${active.num} stopped</strong><br>${esc(e.message)}<br><br>
+          The stages after this one did not run. Nothing was made up to fill the gap.</div>`);
+      }
+    } finally {
+      running = false;
+      el("runBtn").disabled = false;
+      el("runBtn").textContent = "Run the loop";
+    }
   }
 
-  /* =====================================================================
+  /* ============================================================
      BOOT
-     ===================================================================== */
-  function selectTier(t) {
-    $("profile").value = PRESETS[t];
-    Array.prototype.forEach.call(document.querySelectorAll(".tier"), function (b) {
-      b.setAttribute("aria-pressed", String(b.dataset.tier === t));
-    });
+     ============================================================ */
+  function selectTier(tier) {
+    el("profile").value = PRESETS[tier];
+    document.querySelectorAll(".tier").forEach((b) =>
+      b.setAttribute("aria-pressed", String(b.dataset.tier === tier)));
     saveState();
   }
 
   renderRail();
   renderPromptEditors();
-  $("objective").value = DEFAULT_OBJECTIVE;
+  el("objective").value = DEFAULT_OBJECTIVE;
   selectTier("town");
-  loadKey();
-  if (loadState()) renderPromptEditors();
 
-  if (location.protocol === "file:") {
-    $("protoNote").innerHTML = '<p class="keyline" style="color:var(--flag)">' +
-      'Opened as a local file. This usually works. If requests fail, run ' +
-      '<b>python3 -m http.server 8000</b> in this folder and open localhost:8000 instead.</p>';
-  }
-
-  Array.prototype.forEach.call(document.querySelectorAll(".tier"), function (b) {
-    b.addEventListener("click", function () { selectTier(b.dataset.tier); });
-  });
-  ["profile", "objective", "days", "maxScreen", "modelThink", "modelScreen"].forEach(function (id) {
-    $(id).addEventListener("input", saveState);
-  });
-  $("tryFullText").addEventListener("change", saveState);
-  $("apikey").addEventListener("input", saveKey);
-  $("remember").addEventListener("change", saveKey);
-  $("runBtn").addEventListener("click", run);
-  $("resetPrompts").addEventListener("click", function () {
-    prompts = JSON.parse(JSON.stringify(DEFAULTS));
-    renderPromptEditors(); saveState();
+  loadState().then((restored) => {
+    if (restored) renderPromptEditors();
   });
 
-  $("testKey").addEventListener("click", function (e) {
-    var btn = e.currentTarget;
-    btn.textContent = "Testing\u2026";
-    callClaude("Reply with the single word: ready", "ping", $("modelScreen").value.trim(), 16)
-      .then(function () { btn.textContent = "Key works"; })
-      .catch(function (err) {
-        btn.textContent = "Failed";
-        $("banner").innerHTML = '<div class="banner"><strong>Key test failed</strong><br>' +
-          esc(err.message) + '</div>';
-      })
-      .then(function () { setTimeout(function () { btn.textContent = "Test key"; }, 2600); });
+  document.querySelectorAll(".tier").forEach((b) =>
+    b.addEventListener("click", () => selectTier(b.dataset.tier)));
+  el("profile").addEventListener("input", saveState);
+  el("objective").addEventListener("input", saveState);
+  el("days").addEventListener("input", saveState);
+  el("runBtn").addEventListener("click", run);
+  el("resetPrompts").addEventListener("click", () => {
+    prompts = JSON.parse(JSON.stringify(DEFAULT_PROMPTS));
+    renderPromptEditors();
+    saveState();
   });
 
-  $("exportProfile").addEventListener("click", function () {
-    download("newsroom-profile.txt", $("profile").value);
-  });
-  $("importProfile").addEventListener("click", function () { $("fileInput").click(); });
-  $("fileInput").addEventListener("change", function (e) {
-    var f = e.target.files[0];
-    if (!f) return;
-    var r = new FileReader();
-    r.onload = function () {
-      $("profile").value = r.result;
-      Array.prototype.forEach.call(document.querySelectorAll(".tier"), function (b) {
-        b.setAttribute("aria-pressed", "false");
-      });
-      saveState();
-    };
-    r.readAsText(f);
-    e.target.value = "";
-  });
-
-  setBody("frame", '<p class="empty">Nothing has run yet. Paste your API key above, pick a tier, ' +
-    'rewrite the profile so it describes a newsroom you actually know, and run the loop. ' +
-    'Each stage opens as it finishes.</p>');
-  $("body-frame").hidden = false;
-  $("rail").querySelector('[data-toggle="frame"]').setAttribute("aria-expanded", "true");
+  setBody("frame", `<p class="empty">Nothing has run yet. Pick a tier, edit the profile so it describes a real newsroom you know, and run the loop. Each stage will open as it finishes.</p>`);
+  el("body-frame").hidden = false;
+  el("rail").querySelector('[data-toggle="frame"]').setAttribute("aria-expanded", "true");
 })();
 </script>
-</body>
-</html>
