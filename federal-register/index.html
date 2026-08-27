@@ -415,13 +415,21 @@
 "",
 "Do not repeat angles. Do not propose anything the profile says they don't cover.",
 "",
+"AGENCY SPREAD: name the federal agency or sub-agency each angle targets, and",
+"make them different. At most TWO angles may target CMS. The rest must reach",
+"other bodies the profile implies -- FDA, HRSA, SAMHSA, CDC, NIH, EBSA and the",
+"Labor Department, ASPE, AHRQ, ONC, the FTC on health markets, or state-facing",
+"Medicaid authorities. Health policy vocabulary pulls toward CMS by default;",
+"resist it deliberately. Six angles that all land on CMS is a failed set even if",
+"each angle is individually good.",
+"",
 "PRECEDENCE: the newsroom profile describes who they are permanently. THIS RUN",
 "describes what they need today. Where the two conflict, THIS RUN WINS. If this",
 "run excludes a category the profile normally covers, exclude it even if the",
 "profile lists an exception that would let it through.",
 "",
 "Return ONLY a JSON array, no prose, no code fences:",
-'[{"angle": "short phrase", "rationale": "one sentence on why this newsroom"}]'
+'[{"angle": "short phrase", "agency": "which agency", "rationale": "one sentence on why this newsroom"}]'
       ].join("\n") },
 
     query: { label: "02 \u00b7 Query",
@@ -440,11 +448,10 @@
 "  NOTICE covers meetings, grants, environmental statements, records notices.",
 "",
 "",
-"COVERAGE SPREAD: no more than half of these searches may target the same agency",
-"or the same policy area. If the angles cluster, deliberately broaden the terms so",
-"the searches reach the other areas the profile and THIS RUN name. A set of",
-"searches that all return documents from one agency has failed even if each",
-"individual search is well written.",
+"Stay faithful to each angle's agency. If an angle targets FDA, write a term that",
+"would appear in an FDA document, not a Medicare payment term that happens to",
+"touch drugs. The spread across agencies was decided upstream; do not collapse it",
+"back to CMS here.",
 "",
 "",
 "PRECEDENCE: the newsroom profile describes who they are permanently. THIS RUN",
@@ -930,10 +937,34 @@
       .then(function (raw) {
         angles = parseJSON(raw);
         receipts.angles = angles;
-        setStage("frame", "done", angles.length + " angles");
+
+        // Distribution is a property of the SET, which is the kind of thing
+        // code checks and models are bad at self-enforcing. Measure it and say
+        // so, rather than assuming the prompt was obeyed.
+        var byAgency = {};
+        angles.forEach(function (a) {
+          var k = (a.agency || "unspecified").trim();
+          byAgency[k] = (byAgency[k] || 0) + 1;
+        });
+        var spread = Object.keys(byAgency).map(function (k) {
+          return { agency: k, n: byAgency[k] };
+        }).sort(function (x, y) { return y.n - x.n; });
+        var skewed = spread.length && spread[0].n > Math.max(2, Math.ceil(angles.length / 2));
+        receipts.angleSpread = spread;
+
+        setStage("frame", "done", angles.length + " angles \u00b7 " + spread.length + " agencies");
         setBody("frame", '<p class="note">One model call. Your profile and assignment went in; nothing else.</p>' +
+          (skewed
+            ? '<p class="note" style="border-color:var(--flag)">' + spread[0].n + ' of ' +
+              angles.length + ' angles target ' + esc(spread[0].agency) + '. Code counted this; ' +
+              'the model was asked to spread out and did not. Every search below will inherit ' +
+              'the skew, so if the brief comes back monotonous, this is where it started \u2014 ' +
+              'not in the judging.</p>'
+            : '<p class="note">Angles span ' + spread.length + ' agencies: ' +
+              esc(spread.map(function (s2) { return s2.agency + " (" + s2.n + ")"; }).join(", ")) + '.</p>') +
           angles.map(function (a, i) {
-            return '<div class="receipt"><div class="meta"><span>angle ' + (i + 1) + '</span></div>' +
+            return '<div class="receipt"><div class="meta"><span>angle ' + (i + 1) + '</span>' +
+              (a.agency ? '<span>' + esc(a.agency) + '</span>' : '') + '</div>' +
               '<p class="doc-title" style="border:none">' + esc(a.angle) + '</p>' +
               '<p class="why">' + esc(a.rationale) + '</p></div>';
           }).join(""));
