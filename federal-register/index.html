@@ -473,9 +473,15 @@
 "You are writing the top of a memo to a busy assigning editor who has not read any",
 "of these documents.",
 "",
-"In 3-4 sentences: what is the single most consequential item here and why, and is",
-'anything time-sensitive. Name the item plainly. No preamble, no "here is a',
-'summary", no bullet points, no headline.',
+"In 3-4 sentences: what is the single most consequential item here and why. Name",
+'the item plainly. No preamble, no "here is a summary", no bullet points, no',
+"headline.",
+"",
+"TIMING: only say something is time-sensitive if a DEADLINE FACTS line below says",
+"an item has an open comment period. If it says none do, either say nothing about",
+"timing or say plainly that nothing here is on a clock. Never write that windows,",
+"deadlines, or comment periods are approaching or closing when none are listed.",
+"Do not hedge with \"typically\" or \"usually\" to imply a deadline you were not given.",
 "",
 "If nothing here is genuinely consequential, say so directly. That is useful",
 "information and the editor would rather hear it than read filler."
@@ -1098,9 +1104,18 @@
         } else {
           var digest = kept.slice(0, 12).map(function (v) {
             return "- " + v.doc.title + " (" + v.doc.type + ", " + agencyOf(v.doc) +
-              (v.doc.comments_close_on ? ", comments close " + v.doc.comments_close_on : "") +
+              (v.doc.comments_close_on
+                ? ", COMMENTS CLOSE " + v.doc.comments_close_on
+                : ", no open comment period") +
               ") -- " + v.verdict.why;
           }).join("\n");
+          // State the absence. Left silent, the model fills the gap with
+          // plausible-sounding urgency it has no basis for.
+          var withDeadlines = kept.filter(function (v) { return v.doc.comments_close_on; });
+          digest += "\n\nDEADLINE FACTS: " + (withDeadlines.length
+            ? withDeadlines.length + " of these " + kept.length + " items have an open comment period."
+            : "NONE of these " + kept.length + " items has an open comment period. There is no " +
+              "comment deadline to report and nothing here is time-sensitive on that basis.");
           p = callClaude(prompts.brief.text, ctx + "\n\nKEPT ITEMS:\n" + digest, mThink2, 4000);
         }
         return p.then(function (lede) { return { kept: kept, cut: cut, lede: lede.trim() }; });
