@@ -652,7 +652,7 @@
       method: "POST",
       headers: headers,
       body: JSON.stringify({
-        model: model, max_tokens: maxTokens || 2000,
+        model: model, max_tokens: maxTokens || 4000,
         system: system, messages: [{ role: "user", content: user }]
       })
     }).then(function (r) {
@@ -666,6 +666,19 @@
     }).then(function (d) {
       if (d.usage) { usage.in += d.usage.input_tokens; usage.out += d.usage.output_tokens; }
       usage.calls++;
+      // Thinking tokens come out of the same budget as the answer. When the
+      // cap is hit the JSON arrives truncated, which surfaces downstream as a
+      // baffling parse error. Say what actually happened instead.
+      if (d.stop_reason === "max_tokens") {
+        var think = (d.usage && d.usage.output_tokens_details &&
+                     d.usage.output_tokens_details.thinking_tokens) || 0;
+        throw new Error(
+          "The model ran out of output budget before finishing (" +
+          (d.usage ? d.usage.output_tokens : "?") + " tokens, " + think +
+          " of them spent thinking). Raise max_tokens for this stage, or " +
+          "shorten the prompt so it has less to produce."
+        );
+      }
       return d.content.filter(function (b) { return b.type === "text"; })
         .map(function (b) { return b.text; }).join("\n");
     });
@@ -678,7 +691,22 @@
     if (start > 0) t = t.slice(start);
     var end = Math.max(t.lastIndexOf("]"), t.lastIndexOf("}"));
     if (end > -1) t = t.slice(0, end + 1);
-    return JSON.parse(t);
+    try {
+      return JSON.parse(t);
+    } catch (e) {
+      // A truncated array still holds whole objects. Keep those rather than
+      // losing the run over the one that got cut off mid-sentence. Cut at the
+      // last closing brace, not at "},", because models put newlines between
+      // the brace and the comma.
+      if (t.charAt(0) === "[") {
+        var cut = t.lastIndexOf("}");
+        if (cut > 0) {
+          var head = t.slice(0, cut + 1).replace(/[\s,]+$/, "");
+          try { return JSON.parse(head + "]"); } catch (e2) {}
+        }
+      }
+      throw e;
+    }
   }
 
   /* ---------------- the search call (code, not model) ---------------- */
@@ -869,7 +897,7 @@
 
     /* -------- 01 FRAME -------- */
     setStage("frame", "running", "thinking\u2026", true);
-    callClaude(prompts.frame.text, ctx, mThink, 1500)
+    callClaude(prompts.frame.text, ctx, mThink, 6000)
       .then(function (raw) {
         angles = parseJSON(raw);
         receipts.angles = angles;
@@ -884,7 +912,7 @@
         /* -------- 02 QUERY -------- */
         setStage("query", "running", "thinking\u2026", true);
         return callClaude(prompts.query.text,
-          ctx + "\n\nANGLES:\n" + JSON.stringify(angles, null, 2), mThink, 1500);
+          ctx + "\n\nANGLES:\n" + JSON.stringify(angles, null, 2), mThink, 6000);
       })
       .then(function (raw) {
         queries = parseJSON(raw);
@@ -1013,7 +1041,7 @@
             "Comments close: " + (doc.comments_close_on || "none") + "\n" +
             "Effective: " + (doc.effective_on || "none") + "\n\n" +
             (full ? "FULL TEXT:\n" : "ABSTRACT ONLY:\n") + body;
-          return callClaude(prompts.judge.text, payload, mScreen, 700)
+          return callClaude(prompts.judge.text, payload, mScreen, 2000)
             .then(function (raw) { return parseJSON(raw); })
             .catch(function (e) {
               return { keep: false, score: 0, why: "Could not be screened: " + e.message, evidence: "" };
@@ -1073,7 +1101,7 @@
               (v.doc.comments_close_on ? ", comments close " + v.doc.comments_close_on : "") +
               ") -- " + v.verdict.why;
           }).join("\n");
-          p = callClaude(prompts.brief.text, ctx + "\n\nKEPT ITEMS:\n" + digest, mThink2, 1200);
+          p = callClaude(prompts.brief.text, ctx + "\n\nKEPT ITEMS:\n" + digest, mThink2, 4000);
         }
         return p.then(function (lede) { return { kept: kept, cut: cut, lede: lede.trim() }; });
       })
